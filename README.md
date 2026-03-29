@@ -196,15 +196,13 @@ python app.py
 
 ```
 
-##API Documentation
+## API Documentation
 
 The backend exposes REST APIs for all platform features.
 
 Swagger / OpenAPI documentation becomes available once the backend server is running.
 
-Access the API documentation at:
-
-http://localhost:8080/swagger-ui.html
+Access the API documentation at: //to be added
 
 ## API Modules
 
