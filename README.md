@@ -122,98 +122,29 @@ ML pipeline:
 
 # System Architecture
 
+//to be added 
+
 SawaSkills follows a **microservice architecture**.
-//to be added later
-
-## Technology Stack
-
-### Backend
-- Java
-- Spring Boot
-- Spring Security
-- REST API
-- WebSocket
-- JWT Authentication
-
-### Mobile Application
-- React Native
-
-### Web Admin Dashboard
-- React
-
-### Machine Learning
-- Python
-- Scikit-learn
-- TF-IDF Vectorization
-- Logistic Regression
-
-### Database
-- PostgreSQL
-
-### DevOps
-- Docker
-- Docker Compose
-
-### Authentication
-- JWT Authentication
-- OAuth (Google, GitHub, Facebook)
 
 ---
 
-## Database Design
+# Technology Stack
 
-The system uses a **PostgreSQL relational database** designed following **Third Normal Form (3NF)** normalization to ensure data consistency, scalability, and efficient querying.
+| Layer | Technology |
+|------|------------|
+| Backend | Java, Spring Boot, Spring Security |
+| Mobile Application | React Native |
+| Admin Dashboard | React |
+| Machine Learning | Python, Scikit-learn, TF-IDF, Logistic Regression |
+| Database | PostgreSQL |
+| Communication | REST API, WebSocket |
+| Authentication | JWT, OAuth (Google, GitHub, Facebook) |
+| DevOps | Docker, Docker Compose |
 
-### Core Entities
+---
 
-- User
-- Skill
-- SkillCategory
-- UserSkill
-- ExchangeRequest
-- SwapRequest
-- Review
-- Post
-- Comment
-- Story
-- StoryView
-- Connection
-- Conversation
-- Message
-- Notification
-- VolunteerSession
-- VolunteerParticipant
-- VolunteerApplication
-
-## Repository Structure
-
-sawa-skills
-│
-├── backend
-│   ├── controllers
-│   ├── services
-│   ├── repositories
-│   ├── models
-│   └── config
-│
-├── mobile-app
-│   └── React Native project
-│
-├── admin-dashboard
-│   └── React web application
-│
-├── ml-service
-│   └── Python ML microservice
-│
-├── docker
-│   └── Docker configuration
-│
-├── docs
-│   ├── architecture-diagram.png
-│   ├── erd-diagram.png
-│   └── system-design.md
-│
-└── README.md
+# Repository Structure
+// to be added 
 
 
 ---
@@ -226,30 +157,44 @@ sawa-skills
 git clone https://github.com/yourusername/sawa-skills.git
 cd sawa-skills
 
+```
+
 ## Run with Docker
 
 ```bash
 docker-compose up --build
 
+```
 This command starts:
 	•	Backend API
 	•	ML Microservice
 	•	PostgreSQL Database
     
 ## Backend Setup 
+
+```bash
 cd backend
 ./mvnw spring-boot:run
 
+```
+
 ## Mobile App Setup
+
+```bash
 cd mobile-app
 npm install
 npm start
 
+```
+
 ## ML Service Setup
+
+```bash
 cd ml-service
 pip install -r requirements.txt
 python app.py
 
+```
 
 ##API Documentation
 
@@ -278,14 +223,16 @@ http://localhost:8080/swagger-ui.html
 
 ## Future Improvements
 
-Planned future features include:
+Planned future enhancements for the SawaSkills platform include:
 
-- AI-powered skill matching recommendations
-- Video-based learning sessions
-- Advanced moderation tools
-- Reputation and trust system for users
-- Multi-language support
-- Enhanced mobile push notification system
+- **AI-powered skill matching recommendations** to suggest better skill exchange partners.
+- **Online learning sessions within the platform**, allowing users to conduct video-based skill sessions directly inside the app.
+- **User reputation badges**, such as a **Trusted Trader badge** for users who complete a high number of successful exchanges (e.g., 50+ completed swaps).
+- **Dark mode support** to improve user experience and accessibility.
+- **Multi-language support** to make the platform accessible to a wider international audience.
+- **Advanced moderation tools** to improve community safety and content management.
+- **Enhanced push notification system** for real-time updates on swaps, messages, and community activity.
+- **Improved reputation and trust system** based on ratings, completed swaps, and community engagement.
 
 ## Contributing
 
@@ -301,6 +248,11 @@ If you would like to contribute to this project:
 
 ## License
 
-This project was developed as a **Software Engineering senior project** and serves as a prototype for a scalable collaborative learning platform.
+Copyright © 2026 SawaSkills
 
-The code is provided for educational and demonstration purposes.
+This project is currently under development as part of the **SawaSkills platform initiative**.
+
+All rights reserved.
+
+The source code is provided for demonstration and development purposes.  
+Unauthorized copying, modification, distribution, or use of this software without permission is prohibited.
