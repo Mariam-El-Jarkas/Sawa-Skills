@@ -28,7 +28,7 @@ The system is designed as a **full-stack microservice-based platform** including
 
 ---
 
-# Key Features
+## 🚀 Features
 
 ## Skill Exchange
 
@@ -120,7 +120,7 @@ ML pipeline:
 
 ---
 
-# System Architecture
+## 🏗 System Architecture
 
 //to be added 
 
@@ -128,7 +128,7 @@ SawaSkills follows a **microservice architecture**.
 
 ---
 
-# Technology Stack
+## 🧰 Technology Stack
 
 | Layer | Technology |
 |------|------------|
@@ -143,13 +143,13 @@ SawaSkills follows a **microservice architecture**.
 
 ---
 
-# Repository Structure
+## 📂 Repository Structure
 // to be added 
 
 
 ---
 
-# Installation
+## ⚙️ Installation
 
 ## Clone the repository
 
@@ -196,7 +196,7 @@ python app.py
 
 ```
 
-## API Documentation
+## 📡 API Documentation
 
 The backend exposes REST APIs for all platform features.
 
@@ -219,7 +219,7 @@ Access the API documentation at: //to be added
 | Notifications | User notifications |
 | Admin | Moderation and system management |
 
-## Future Improvements
+## 🛣 Future Improvements
 
 Planned future enhancements for the SawaSkills platform include:
 
@@ -232,7 +232,7 @@ Planned future enhancements for the SawaSkills platform include:
 - **Enhanced push notification system** for real-time updates on swaps, messages, and community activity.
 - **Improved reputation and trust system** based on ratings, completed swaps, and community engagement.
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome.
 
@@ -244,7 +244,7 @@ If you would like to contribute to this project:
 4. Push the branch to your fork
 5. Submit a Pull Request for review
 
-## License
+## 📄 License
 
 Copyright © 2026 SawaSkills
 
