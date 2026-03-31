@@ -1,4 +1,5 @@
 package com.example.sawaskills.entity;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,5 +28,9 @@ public class NewsArticle {
     private String url;
 
     private LocalDateTime publishedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "skill_category_id")
+    private SkillCategory skillCategory;
 
 }
