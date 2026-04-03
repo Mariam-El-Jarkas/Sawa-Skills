@@ -22,6 +22,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final OtpVerificationRepository otpVerificationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     // ================================
     // REGISTER USER
@@ -51,15 +52,14 @@ public class AuthService {
         OtpVerification otp = OtpVerification.builder()
                 .email(user.getEmail())
                 .otpHash(passwordEncoder.encode(otpCode))
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .expiresAt(LocalDateTime.now().plusMinutes(2))
                 .createdAt(LocalDateTime.now())
                 .used(false)
                 .build();
 
         otpVerificationRepository.save(otp);
 
-        // temporary until email service
-        System.out.println("OTP generated: " + otpCode);
+       emailService.sendOtpEmail(user.getEmail(), otpCode);
 
         return RegisterResponse.builder()
                 .userId(user.getId())

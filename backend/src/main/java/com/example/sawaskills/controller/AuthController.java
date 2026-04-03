@@ -16,9 +16,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    // ================================
-    // REGISTER
-    // ================================
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
 
@@ -27,12 +24,8 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    // ================================
-    // VERIFY EMAIL
-    // ================================
     @PostMapping("/verify-email")
-    public ResponseEntity<VerifyEmailResponse> verifyEmail(
-            @RequestBody VerifyEmailRequest request) {
+    public ResponseEntity<VerifyEmailResponse> verifyEmail(@RequestBody VerifyEmailRequest request) {
 
         VerifyEmailResponse response = authService.verifyEmail(request);
 
