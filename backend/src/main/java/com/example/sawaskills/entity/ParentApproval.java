@@ -22,12 +22,16 @@ public class ParentApproval {
     private String parentEmail;
 
     @Column(nullable = false)
-    private String status; 
-    // PENDING / APPROVED / REJECTED
+    private String status;
+
+    @Column(unique = true, nullable = false)
+    private String token;
 
     private LocalDateTime requestedAt;
 
     private LocalDateTime approvedAt;
+
+    private LocalDateTime expiresAt;
 
     @ManyToOne
     @JoinColumn(name = "minor_user_id", nullable = false)

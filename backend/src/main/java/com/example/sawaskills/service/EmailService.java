@@ -61,6 +61,41 @@ public class EmailService {
         sendEmail(email, "Verify your email for SawaSkills", html);
     }
 
+    public void sendParentApprovalEmail(String parentEmail, String token) {
+
+    String link = "http://localhost:8080/api/verification/minor/approve?token=" + token;
+
+    String html = """
+        <div style="background:#f5f3ff;padding:40px;font-family:Arial;">
+            <div style="max-width:500px;margin:auto;background:white;padding:30px;border-radius:12px;text-align:center;">
+
+                <h2 style="color:#7c3aed;">SawaSkills Minor Account Approval</h2>
+
+                <p>Your child requested to create a SawaSkills account.</p>
+
+                <p>Please approve their account by clicking below.</p>
+
+                <a href="%s"
+                   style="display:inline-block;
+                          margin-top:20px;
+                          padding:14px 28px;
+                          background:#7c3aed;
+                          color:white;
+                          text-decoration:none;
+                          border-radius:8px;">
+                    Approve Account
+                </a>
+
+                <p style="margin-top:20px;font-size:12px;color:#777;">
+                    This link expires in 24 hours.
+                </p>
+
+            </div>
+        </div>
+        """.formatted(link);
+
+    sendEmail(parentEmail, "Approve your child's SawaSkills account", html);
+}
     public void sendPasswordResetEmail(String email, String token) {
 
         String resetLink = "http://localhost:3000/reset-password?token=" + token;

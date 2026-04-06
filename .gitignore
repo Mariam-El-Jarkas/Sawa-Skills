@@ -1,0 +1,64 @@
+######################################
+IDE / Editor
+######################################
+.vscode/
+.idea/
+*.swp
+*.swo
+
+######################################
+Logs
+######################################
+.log
+
+######################################
+Environment files
+######################################
+.env
+.env.local
+.env.development
+.env.production
+
+######################################
+Backend (Spring Boot)
+######################################
+backend/target/
+backend/.mvn/
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/application-dev.properties
+
+######################################
+Node / React projects
+######################################
+node_modules/
+dist/
+build/
+
+######################################
+React Native
+######################################
+mobile-app/node_modules/
+mobile-app/.expo/
+mobile-app/.expo-shared/
+mobile-app/dist/
+
+######################################
+Admin dashboard (React)
+######################################
+admin-dashboard/node_modules/
+admin-dashboard/dist/
+
+######################################
+Python ML service
+######################################
+ml-service/pycache/
+ml-service/.pyc
+ml-service/.venv/
+ml-service/venv/
+
+######################################
+OS files
+######################################
+.DS_Store
+Thumbs.db

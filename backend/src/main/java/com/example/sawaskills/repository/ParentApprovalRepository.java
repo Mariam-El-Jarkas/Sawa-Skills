@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ParentApprovalRepository extends JpaRepository<ParentApproval, Long> {
+
 }
