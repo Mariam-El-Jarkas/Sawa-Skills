@@ -1,24 +1,26 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import React, { useState } from 'react';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider } from '../contexts/AuthContext';
+import { SplashScreen } from '../components/SplashScreen';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [splashDone, setSplashDone] = useState(false);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        {!splashDone && <SplashScreen onComplete={() => setSplashDone(true)} />}
+        {splashDone && (
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth/index" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="profile/index" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="notifications/index" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="volunteer/index" options={{ animation: 'slide_from_right' }} />
+          </Stack>
+        )}
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
