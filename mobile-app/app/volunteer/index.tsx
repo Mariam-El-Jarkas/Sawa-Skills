@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Heart, Award, Calendar, MapPin, Users, X, CheckCircle, ArrowLeft, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 import { C, G } from '../../components/theme';
 
 const opportunities = [
@@ -18,6 +19,7 @@ const mySessions = [
 export default function VolunteerScreen() {
   const router = useRouter();
   const { isLoggedIn, setShowLoginPrompt } = useAuth();
+  const { profile, applyForVolunteer } = useProfile();
   const [joinedSessions, setJoinedSessions] = useState<number[]>([]);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [applicationSubmitted, setApplicationSubmitted] = useState(false);
@@ -34,10 +36,19 @@ export default function VolunteerScreen() {
     }
   };
 
-  const handleAppSubmit = () => {
-    setApplicationSubmitted(true);
-    setShowApplicationForm(false);
-    setTimeout(() => setApplicationSubmitted(false), 3000);
+  const handleAppSubmit = async () => {
+    if (!appData.why || !appData.experience || !appData.skills) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+    try {
+      await applyForVolunteer(appData.why, appData.experience, appData.skills);
+      setApplicationSubmitted(true);
+      setShowApplicationForm(false);
+      setTimeout(() => setApplicationSubmitted(false), 3000);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   const handleSessionSubmit = () => {
@@ -62,12 +73,18 @@ export default function VolunteerScreen() {
             <Heart size={36} color={C.white} />
             <Text style={s.heroTitle}>Give Back to Your Community</Text>
             <Text style={s.heroSub}>Share your skills for free and make a difference in Lebanon</Text>
-            <TouchableOpacity
-              style={s.applyBtn}
-              onPress={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setShowApplicationForm(true); }}
-            >
-              <Text style={s.applyBtnTxt}>Become a Volunteer</Text>
-            </TouchableOpacity>
+            {profile?.isVolunteer ? (
+              <View style={[s.applyBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Text style={[s.applyBtnTxt, { color: C.white }]}>Application Under Review ✓</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={s.applyBtn}
+                onPress={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setShowApplicationForm(true); }}
+              >
+                <Text style={s.applyBtnTxt}>Become a Volunteer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </LinearGradient>
 

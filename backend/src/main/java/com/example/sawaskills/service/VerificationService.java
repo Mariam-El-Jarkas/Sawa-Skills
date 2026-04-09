@@ -19,9 +19,9 @@ public class VerificationService {
     private final ParentApprovalRepository parentApprovalRepository;
     private final EmailService emailService;
 
-    public String requestMinorVerification(Long userId, MinorVerificationRequest request) {
+    public String requestMinorVerification(String email, MinorVerificationRequest request) {
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         String token = UUID.randomUUID().toString();
@@ -45,10 +45,7 @@ public class VerificationService {
     public String approveMinor(String token) {
 
         ParentApproval approval = parentApprovalRepository
-                .findAll()
-                .stream()
-                .filter(a -> a.getToken().equals(token))
-                .findFirst()
+                .findByToken(token)
                 .orElseThrow(() -> new RuntimeException("Invalid approval token"));
 
         if (approval.getExpiresAt().isBefore(LocalDateTime.now())) {

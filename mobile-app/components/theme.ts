@@ -19,11 +19,15 @@ export const C = {
   white: '#FFFFFF',
   green500: '#22C55E',
   red600: '#DC2626',
+  red100: '#FEE2E2',
   red50: '#FEF2F2',
   amber100: '#FEF3C7',
   amber700: '#B45309',
   yellow400: '#FACC15',
+  emerald800: '#065F46',
   emerald600: '#059669',
+  emerald100: '#D1FAE5',
+  emerald50: '#ECFDF5',
 };
 
 export const G = {

@@ -1,4 +1,5 @@
 package com.example.sawaskills.entity;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,8 +22,16 @@ public class VolunteerApplication {
 
     private LocalDateTime submittedAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String why;
+
+    @Column(columnDefinition = "TEXT")
+    private String experience;
+
+    @Column(columnDefinition = "TEXT")
+    private String skillsToShare;
+
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User applicant;
-
 }

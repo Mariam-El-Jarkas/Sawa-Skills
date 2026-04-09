@@ -23,7 +23,7 @@ const upcomingEvents = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isLoggedIn, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, user, setShowLoginPrompt } = useAuth();
   const [joinedEvents, setJoinedEvents] = useState<number[]>([]);
   const [location] = useState('Beirut');
 
@@ -41,7 +41,7 @@ export default function HomeScreen() {
         <View style={s.heroMsg}>
           {isLoggedIn ? (
             <>
-              <Text style={s.heroTitle}>Welcome back, Alex! 👋</Text>
+              <Text style={s.heroTitle}>Welcome back, {user?.name?.split(' ')[0] ?? 'there'}! 👋</Text>
               <Text style={s.heroSub}>Ready to swap today?</Text>
             </>
           ) : (
