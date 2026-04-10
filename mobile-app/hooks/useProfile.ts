@@ -40,6 +40,7 @@ export interface ProfileData {
   reviewCount: number;
   swapCount: number;
   volunteerStatus: string | null;
+  isVolunteer: boolean;
   isAgeVerified: boolean;
   isMinorVerified: boolean;
   reviews: ReviewData[];
@@ -90,6 +91,7 @@ export function useProfile() {
         profilePicture: raw.profilePicture ? `${toAbsoluteUrl(raw.profilePicture)}?t=${Date.now()}` : null,
         offeredSkills: raw.offeredSkills ?? [],
         wantedSkills: raw.wantedSkills ?? [],
+        isVolunteer: !!raw.volunteerStatus,
       };
       setProfile(data);
       updateUser({
@@ -161,7 +163,7 @@ export function useProfile() {
       body: JSON.stringify({ why, experience, skillsToShare }),
     });
     if (!res.ok) throw new Error(await parseError(res, 'Failed to apply for volunteer badge'));
-    setProfile(p => p ? { ...p, volunteerStatus: 'PENDING' } : p);
+    setProfile(p => p ? { ...p, volunteerStatus: 'PENDING', isVolunteer: true } : p);
   }, [token]);
 
   const requestEmailChange = useCallback(async (newEmail: string): Promise<void> => {

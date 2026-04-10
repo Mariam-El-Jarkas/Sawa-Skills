@@ -120,10 +120,10 @@ export default function VolunteerScreen() {
                       <Text style={s.progressTxt}>{opp.participants}/{opp.maxParticipants} spots</Text>
                     </View>
                     <TouchableOpacity
-                      style={[s.joinBtn, joinedSessions.includes(opp.id) && s.joinBtnDone]}
+                      style={[s.joinBtn, joinedSessions.includes(opp.id) ? s.joinBtnDone : null]}
                       onPress={() => handleJoin(opp.id, opp.title)}
                     >
-                      <Text style={[s.joinBtnTxt, joinedSessions.includes(opp.id) && s.joinBtnTxtDone]}>
+                      <Text style={[s.joinBtnTxt, joinedSessions.includes(opp.id) ? s.joinBtnTxtDone : null]}>
                         {joinedSessions.includes(opp.id) ? 'Joined ✓' : 'Join'}
                       </Text>
                     </TouchableOpacity>
@@ -231,7 +231,7 @@ export default function VolunteerScreen() {
                   <View key={key}>
                     <Text style={s.fieldLabel}>{label}</Text>
                     <TextInput
-                      style={[s.fieldInput, (key === 'description') && s.fieldTextarea]}
+                      style={[s.fieldInput, key === 'description' ? s.fieldTextarea : null]}
                       value={sessionData[key as keyof typeof sessionData]}
                       onChangeText={v => setSessionData(p => ({ ...p, [key]: v }))}
                       placeholder={placeholder}
