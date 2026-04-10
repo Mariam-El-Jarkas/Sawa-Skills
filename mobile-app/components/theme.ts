@@ -3,6 +3,7 @@ export const C = {
   violet500: '#8B5CF6',
   violet400: '#A78BFA',
   violet300: '#C4B5FD',
+  violet200: '#DDD6FE',
   violet100: '#EDE9FE',
   violet50: '#F5F3FF',
   pink500: '#EC4899',

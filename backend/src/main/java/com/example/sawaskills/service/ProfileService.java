@@ -35,6 +35,7 @@ public class ProfileService {
     private final UserSkillRepository userSkillRepository;
     private final ConnectionRepository connectionRepository;
     private final SupportRequestRepository supportRequestRepository;
+    private final VerificationRequestRepository verificationRequestRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
@@ -48,9 +49,6 @@ public class ProfileService {
                 .findAvgRatingByReviewedUserId(user.getId())
                 .orElse(0.0);
         long swapCount = swapRequestRepository.countCompletedSwapsByUserId(user.getId());
-        String volunteerStatus = volunteerApplicationRepository.findByApplicantId(user.getId())
-                .map(app -> app.getStatus() != null ? app.getStatus() : "PENDING")
-                .orElse(null);
 
         List<ReviewDto> reviews = reviewRepository
                 .findByReviewedUserIdOrderByCreatedAtDesc(user.getId())
@@ -116,9 +114,11 @@ public class ProfileService {
                 .avgRating(Math.round(avgRating * 10.0) / 10.0)
                 .reviewCount(reviewCount)
                 .swapCount(swapCount)
-                .volunteerStatus(volunteerStatus)
-                .isAgeVerified(Boolean.TRUE.equals(user.getVerified()) && isAdultVerified(user))
+                .volunteerStatus(getVolunteerStatus(user))
+                .ageVerificationStatus(getAgeVerificationStatus(user))
+                .isAgeVerified(isAdultVerified(user))
                 .isMinorVerified(isMinorVerified(user))
+                .isVolunteer(isVolunteer(user))
                 .reviews(reviews)
                 .offeredSkills(offeredSkills)
                 .wantedSkills(wantedSkills)
@@ -359,11 +359,38 @@ public class ProfileService {
     }
 
     private boolean isAdultVerified(User user) {
-        return false; // replaced with VerificationRequest check in a later phase
+        return verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "ADULT")
+                .map(req -> "APPROVED".equals(req.getStatus()))
+                .orElse(false);
     }
 
     private boolean isMinorVerified(User user) {
-        return false; // replaced with ParentApproval check in a later phase
+        return verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "MINOR")
+                .map(req -> "APPROVED".equals(req.getStatus()))
+                .orElse(false);
+    }
+
+    private boolean isVolunteer(User user) {
+        return verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "VOLUNTEER")
+                .map(req -> "APPROVED".equals(req.getStatus()))
+                .orElse(false);
+    }
+
+    private String getVolunteerStatus(User user) {
+        return verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "VOLUNTEER")
+                .map(VerificationRequest::getStatus)
+                .orElse(null);
+    }
+
+    private String getAgeVerificationStatus(User user) {
+        // Check for either Adult or Minor pending/approved status
+        return verificationRequestRepository.findAll().stream()
+                .filter(req -> req.getUser().getId().equals(user.getId()))
+                .filter(req -> "ADULT".equals(req.getType()) || "MINOR".equals(req.getType()))
+                .sorted((a, b) -> b.getSubmittedAt().compareTo(a.getSubmittedAt()))
+                .findFirst()
+                .map(VerificationRequest::getStatus)
+                .orElse(null);
     }
     @Transactional(readOnly = true)
     public boolean checkSupportTableExists() {
@@ -374,5 +401,55 @@ public class ProfileService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    // ── Public profile (view another user) ───────────────────────────────────
+
+    public ProfileResponse getPublicProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        double avgRating = reviewRepository
+                .findAvgRatingByReviewedUserId(user.getId())
+                .orElse(0.0);
+        long reviewCount = reviewRepository.countByReviewedUserId(user.getId());
+        long swapCount = swapRequestRepository.countCompletedSwapsByUserId(user.getId());
+
+        List<ReviewDto> reviews = reviewRepository
+                .findByReviewedUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(r -> ReviewDto.builder()
+                        .id(r.getId())
+                        .reviewerName(r.getReviewer() != null ? r.getReviewer().getName() : "Anonymous")
+                        .rating(r.getRating())
+                        .comment(r.getComment())
+                        .createdAt(r.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        List<String> offeredSkills = userSkillRepository
+                .findByUserIdAndOffering(user.getId(), true)
+                .stream()
+                .map(us -> us.getSkill().getSkillName())
+                .collect(Collectors.toList());
+
+        List<String> wantedSkills = userSkillRepository
+                .findByUserIdAndOffering(user.getId(), false)
+                .stream()
+                .map(us -> us.getSkill().getSkillName())
+                .collect(Collectors.toList());
+
+        return ProfileResponse.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .bio(user.getBio())
+                .profilePicture(user.getProfilePicture())
+                .avgRating(Math.round(avgRating * 10.0) / 10.0)
+                .reviewCount(reviewCount)
+                .swapCount(swapCount)
+                .isVolunteer(isVolunteer(user))
+                .offeredSkills(offeredSkills)
+                .wantedSkills(wantedSkills)
+                .build();
     }
 }

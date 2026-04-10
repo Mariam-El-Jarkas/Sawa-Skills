@@ -1,147 +1,167 @@
-import { useState } from 'react'
-import { CheckCircle, XCircle, Eye, ShieldCheck, Users } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckCircle, XCircle, Eye, ShieldCheck, Clock, Award, Mail } from 'lucide-react'
 import { PageHeader, Table, Modal, ConfirmDialog } from '../../components/ui'
-import { mockVerifications } from '../../data/mockData'
+import { useAuthStore } from '../../store/authStore'
 import clsx from 'clsx'
 
 const STATUS_BADGE = {
-  pending: 'badge-yellow',
-  approved: 'badge-green',
-  rejected: 'badge-red',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  PENDING_PARENT: 'bg-orange-100 text-orange-700',
+  PENDING_ADMIN: 'bg-blue-100 text-blue-600',
+  APPROVED: 'bg-green-100 text-green-700',
+  REJECTED: 'bg-red-100 text-red-700',
 }
 
+const BASE_URL = 'http://localhost:8080'
+
 export default function VerificationPage() {
+  const { token } = useAuthStore()
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [confirm, setConfirm] = useState(null)
-  const [tab, setTab] = useState('adult')
-  const filtered = mockVerifications.filter(v => v.type === tab)
+  const [tab, setTab] = useState('ADULT')
 
-  const adultPending = mockVerifications.filter(v => v.type === 'adult' && v.status === 'pending').length
-  const minorPending = mockVerifications.filter(v => v.type === 'minor' && v.status === 'pending').length
+  useEffect(() => {
+    fetchRequests()
+  }, [])
+
+  const fetchRequests = async () => {
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const res = await fetch(`${BASE_URL}/api/verification/admin/requests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setRequests(data)
+      } else {
+        setFetchError(`Error ${res.status}: Failed to fetch`)
+      }
+    } catch (error) {
+      console.error('Failed to fetch requests:', error)
+      setFetchError('Failed to connect to backend server')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateStatus = async (id, status) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/verification/admin/requests/${id}/status`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status })
+      })
+      if (res.ok) {
+        fetchRequests()
+        setConfirm(null)
+        setSelected(null)
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error)
+    }
+  }
+
+  const filtered = requests.filter(v => v.type === tab)
+  const adultPending = requests.filter(v => v.type === 'ADULT' && v.status === 'PENDING').length
+  const minorPending = requests.filter(v => v.type === 'MINOR' && (v.status === 'PENDING_PARENT' || v.status === 'PENDING_ADMIN')).length
+  const volunteerPending = requests.filter(v => v.type === 'VOLUNTEER' && v.status === 'PENDING').length
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '—'
+    return new Date(dateStr).toLocaleDateString()
+  }
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="Verification Requests" subtitle="Review and approve user identity verification submissions" />
+    <div className="space-y-6">
+      <PageHeader 
+        title="Verification Management" 
+        subtitle="Review and process user identity & volunteer applications" 
+      />
 
-      {/* Tab Switcher */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => setTab('adult')}
-          className={clsx(
-            'flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-medium transition-all border',
-            tab === 'adult'
-              ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-          )}
-        >
-          <ShieldCheck size={16} />
-          Adult Verification
-          {adultPending > 0 && (
-            <span className={clsx('px-1.5 py-0.5 rounded-full text-xs font-semibold', tab === 'adult' ? 'bg-white/25 text-white' : 'bg-red-100 text-red-600')}>
-              {adultPending}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setTab('minor')}
-          className={clsx(
-            'flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-medium transition-all border',
-            tab === 'minor'
-              ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-          )}
-        >
-          <Users size={16} />
-          Minor Verification
-          {minorPending > 0 && (
-            <span className={clsx('px-1.5 py-0.5 rounded-full text-xs font-semibold', tab === 'minor' ? 'bg-white/25 text-white' : 'bg-red-100 text-red-600')}>
-              {minorPending}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Modern Tab Switcher */}
+      <div className="flex p-1 bg-gray-100/50 rounded-xl w-fit">
         {[
-          { label: 'Pending', value: filtered.filter(v => v.status === 'pending').length, color: 'text-yellow-600' },
-          { label: 'Approved', value: filtered.filter(v => v.status === 'approved').length, color: 'text-green-600' },
-          { label: 'Rejected', value: filtered.filter(v => v.status === 'rejected').length, color: 'text-red-600' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="card p-4 text-center">
-            <p className={clsx('text-2xl font-bold', color)}>{value}</p>
-            <p className="text-sm text-gray-500 mt-1">{label}</p>
-          </div>
+          { id: 'ADULT', label: 'Adults', icon: ShieldCheck, count: adultPending },
+          { id: 'MINOR', label: 'Minors', icon: Clock, count: minorPending },
+          { id: 'VOLUNTEER', label: 'Volunteers', icon: Award, count: volunteerPending },
+        ].map(({ id, label, icon: Icon, count }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={clsx(
+              'flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all',
+              tab === id
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            <Icon size={16} />
+            {label}
+            {count > 0 && (
+              <span className={clsx(
+                'ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+                tab === id ? 'bg-primary-100 text-primary-700' : 'bg-red-100 text-red-600'
+              )}>
+                {count}
+              </span>
+            )}
+          </button>
         ))}
       </div>
 
-      <div className="card">
-        <Table
-          headers={
-            tab === 'adult'
-              ? ['User', 'Email', 'Submitted', 'Documents', 'Status', 'Actions']
-              : ['User', 'Email', 'Parent Email', 'Requested At', 'Status', 'Actions']
-          }
+      {fetchError && (
+        <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex justify-between items-center">
+          <span>{fetchError}</span>
+          <button onClick={fetchRequests} className="underline font-bold">Retry</button>
+        </div>
+      )}
+
+      <div className="card overflow-hidden">
+        <Table 
+          headers={['User', 'Full Name', 'Date Submitted', 'Status', 'Actions']}
           empty={filtered.length === 0}
         >
-          {filtered.map(v => (
-            <tr key={v.id} className="table-row">
-              <td className="table-td">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary-700 text-xs font-bold">{v.name[0]}</span>
+          {filtered.map(req => (
+            <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
+              <td className="px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xs">
+                    {req.user?.name?.[0] || '?'}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{v.name}</p>
-                    <p className="text-xs text-gray-400">{v.userId}</p>
+                    <div className="font-semibold text-gray-900">{req.user?.name}</div>
+                    <div className="text-xs text-gray-500">{req.user?.email}</div>
                   </div>
                 </div>
               </td>
-              <td className="table-td text-gray-500">{v.email}</td>
-
-              {tab === 'adult'
-                ? <td className="table-td text-gray-500 text-xs">{v.submittedAt}</td>
-                : <td className="table-td text-gray-500 text-sm">{v.parentEmail || '—'}</td>
-              }
-
-              {tab === 'adult'
-                ? <td className="table-td">
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-medium">
-                      {v.documents?.length || 0} files
-                    </span>
-                  </td>
-                : <td className="table-td text-gray-500 text-xs">{v.requestedAt || '—'}</td>
-              }
-
-              <td className="table-td">
-                <span className={clsx('badge', STATUS_BADGE[v.status])}>{v.status}</span>
+              <td className="px-5 py-4 font-medium text-gray-700">{req.fullName || '—'}</td>
+              <td className="px-5 py-4 text-sm text-gray-500">{formatDate(req.submittedAt)}</td>
+              <td className="px-5 py-4">
+                <span className={clsx('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', STATUS_BADGE[req.status])}>
+                  {req.status === 'PENDING_PARENT' ? 'Waiting for Parent' : 
+                   req.status === 'PENDING_ADMIN' ? 'Parent Approved' : 
+                   req.status}
+                </span>
               </td>
-
-              <td className="table-td">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setSelected(v)}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500"
-                    title="View details"
-                  >
-                    <Eye size={15} />
+              <td className="px-5 py-4 text-right">
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setSelected(req)} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all">
+                    <Eye size={18} />
                   </button>
-                  {v.status === 'pending' && (
+                  {['PENDING', 'PENDING_ADMIN'].includes(req.status) && (
                     <>
-                      <button
-                        onClick={() => setConfirm({ msg: `Approve verification for ${v.name}?`, danger: false, action: () => {} })}
-                        className="p-1.5 hover:bg-green-50 rounded-lg text-green-600"
-                        title="Approve"
-                      >
-                        <CheckCircle size={15} />
+                      <button onClick={() => setConfirm({ id: req.id, status: 'APPROVED' })} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all">
+                        <CheckCircle size={18} />
                       </button>
-                      <button
-                        onClick={() => setConfirm({ msg: `Reject verification for ${v.name}?`, danger: true, action: () => {} })}
-                        className="p-1.5 hover:bg-red-50 rounded-lg text-red-600"
-                        title="Reject"
-                      >
-                        <XCircle size={15} />
+                      <button onClick={() => setConfirm({ id: req.id, status: 'REJECTED' })} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                        <XCircle size={18} />
                       </button>
                     </>
                   )}
@@ -152,69 +172,99 @@ export default function VerificationPage() {
         </Table>
       </div>
 
-      {/* Detail Modal */}
+      {/* Details Modal */}
       {selected && (
-        <Modal title="Verification Details" onClose={() => setSelected(null)}>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                <span className="text-primary-700 text-lg font-bold">{selected.name[0]}</span>
+        <Modal 
+          title={`${tab.charAt(0) + tab.slice(1).toLowerCase()} Verification: ${selected.user?.name}`} 
+          onClose={() => setSelected(null)}
+        >
+          <div className="space-y-6">
+            <div className="bg-gray-50 p-4 rounded-xl space-y-3">
+              <div className="flex justify-between">
+                <span className="text-xs font-bold text-gray-400 uppercase">Submission Detail</span>
+                <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold uppercase', STATUS_BADGE[selected.status])}>{selected.status}</span>
               </div>
-              <div>
-                <p className="font-semibold text-gray-900">{selected.name}</p>
-                <p className="text-sm text-gray-500">{selected.email}</p>
-              </div>
-              <span className={clsx('badge ml-auto', STATUS_BADGE[selected.status])}>{selected.status}</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ['User ID', selected.userId],
-                ['Type', selected.type === 'adult' ? 'Adult (18+)' : 'Minor (Under 18)'],
-                ['Submitted', selected.submittedAt],
-                ['Status', selected.status],
-              ].map(([k, v]) => (
-                <div key={k} className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">{k}</p>
-                  <p className="font-medium text-gray-800 capitalize">{v}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Legal Name</label>
+                  <p className="font-semibold text-gray-800">{selected.fullName || '—'}</p>
                 </div>
-              ))}
-            </div>
-
-            {selected.type === 'adult' && selected.documents && (
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Submitted Documents</p>
-                <div className="flex gap-2 flex-wrap">
-                  {selected.documents.map(doc => (
-                    <div key={doc} className="flex items-center gap-1.5 bg-primary-50 border border-primary-200 rounded-lg px-3 py-2 text-xs text-primary-700 font-medium">
-                      <ShieldCheck size={12} />
-                      {doc}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Birth Date</label>
+                  <p className="font-semibold text-gray-800">{selected.dob || '—'}</p>
+                </div>
+              </div>
+              {selected.parentEmail && (
+                <div className="pt-2 border-t flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-primary-500" />
+                    <span className="text-xs text-gray-600">Guardian: <span className="font-bold">{selected.parentEmail}</span></span>
+                  </div>
+                  {selected.parentDecisionAt && (
+                    <div className="flex items-center gap-2 px-2 py-1 bg-green-50 rounded text-[10px] text-green-700 font-bold self-start">
+                      <CheckCircle size={10} />
+                      Parent Approved at {new Date(selected.parentDecisionAt).toLocaleString()}
                     </div>
-                  ))}
+                  )}
+                  {selected.status === 'PENDING_PARENT' && (
+                    <div className="flex items-center gap-2 px-2 py-1 bg-orange-50 rounded text-[10px] text-orange-700 font-bold self-start animate-pulse">
+                      <Clock size={10} />
+                      Waiting for parental consent...
+                    </div>
+                  )}
                 </div>
+              )}
+            </div>
+
+            {selected.type === 'VOLUNTEER' && (
+              <div className="space-y-4">
+                {[
+                  { lbl: 'Motivation', val: selected.why },
+                  { lbl: 'Experience', val: selected.experience },
+                  { lbl: 'Skills to share', val: selected.skillsToShare }
+                ].map(f => (
+                  <div key={f.lbl} className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">{f.lbl}</label>
+                    <p className="text-sm text-gray-600 bg-white border border-gray-100 p-3 rounded-lg leading-relaxed">{f.val || '—'}</p>
+                  </div>
+                ))}
               </div>
             )}
 
-            {selected.type === 'minor' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Users size={15} className="text-blue-600" />
-                  <p className="text-sm font-medium text-blue-800">Parental Approval Required</p>
-                </div>
-                <p className="text-sm text-blue-700">
-                  Approval email sent to: <strong>{selected.parentEmail}</strong>
-                </p>
-                <p className="text-xs text-blue-500 mt-1">Waiting for parent/guardian to confirm.</p>
+            {selected.type === 'ADULT' && (
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { lbl: 'Front ID', path: selected.idFrontImage },
+                  { lbl: 'Back ID', path: selected.idBackImage },
+                  { lbl: 'Selfie', path: selected.selfieImage }
+                ].map((img, i) => (
+                  <div key={i} className={clsx("space-y-2", i === 2 && "col-span-2")}>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">{img.lbl}</label>
+                    <div className="aspect-[4/3] rounded-xl overflow-hidden border-2 border-gray-100 bg-gray-50">
+                      {img.path ? (
+                        <img src={`${BASE_URL}${img.path}`} alt={img.lbl} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 font-medium">No image uploaded</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {selected.status === 'pending' && (
-              <div className="flex gap-2 pt-2">
-                <button className="btn-primary flex-1 text-sm" onClick={() => setSelected(null)}>
-                  Approve
+            {['PENDING', 'PENDING_ADMIN'].includes(selected.status) && (
+              <div className="flex gap-4 pt-4 border-t">
+                <button 
+                  onClick={() => setConfirm({ id: selected.id, status: 'APPROVED' })}
+                  className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors shadow-sm"
+                >
+                  Approve Application
                 </button>
-                <button className="btn-danger flex-1 text-sm" onClick={() => setSelected(null)}>
-                  Reject
+                <button 
+                  onClick={() => setConfirm({ id: selected.id, status: 'REJECTED' })}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors shadow-sm"
+                >
+                  Reject Application
                 </button>
               </div>
             )}
@@ -222,11 +272,12 @@ export default function VerificationPage() {
         </Modal>
       )}
 
+      {/* Confirmation Dialog */}
       {confirm && (
         <ConfirmDialog
-          message={confirm.msg}
-          danger={confirm.danger}
-          onConfirm={() => { confirm.action(); setConfirm(null) }}
+          message={`Are you sure you want to set this application as ${confirm.status.toLowerCase()}?`}
+          danger={confirm.status === 'REJECTED'}
+          onConfirm={() => handleUpdateStatus(confirm.id, confirm.status)}
           onCancel={() => setConfirm(null)}
         />
       )}

@@ -1,16 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import { useAuth } from '../contexts/AuthContext';
-
-const getBaseUrl = (): string => {
-  if (Platform.OS === 'web') return 'http://localhost:8080';
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  if (host && host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:8080`;
-  return 'http://10.0.2.2:8080';
-};
-
-const BASE_URL = getBaseUrl();
+import { BASE_URL } from '../services/api';
 
 export interface ReviewData {
   id: number;
@@ -43,6 +33,7 @@ export interface ProfileData {
   isVolunteer: boolean;
   isAgeVerified: boolean;
   isMinorVerified: boolean;
+  ageVerificationStatus: string | null;
   reviews: ReviewData[];
   offeredSkills: string[];
   wantedSkills: string[];
@@ -56,7 +47,7 @@ const toAbsoluteUrl = (path: string | null): string | null => {
   return `${BASE_URL}${path}`;
 };
 
-export function useProfile() {
+export function useProfile(userId?: number | string) {
   const { token, updateUser } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,7 +73,8 @@ export function useProfile() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BASE_URL}/api/profile/me`, { headers: getHeaders() });
+      const endpoint = userId ? `/api/profile/${userId}` : '/api/profile/me';
+      const res = await fetch(`${BASE_URL}${endpoint}`, { headers: getHeaders() });
       if (!res.ok) throw new Error(await parseError(res, `Failed to load profile (${res.status})`));
       const raw: ProfileData = await res.json();
       // Resolve relative picture URL to absolute so <Image> can load it
@@ -91,26 +83,33 @@ export function useProfile() {
         profilePicture: raw.profilePicture ? `${toAbsoluteUrl(raw.profilePicture)}?t=${Date.now()}` : null,
         offeredSkills: raw.offeredSkills ?? [],
         wantedSkills: raw.wantedSkills ?? [],
-        isVolunteer: !!raw.volunteerStatus,
+        reviews: raw.reviews ?? [],
+        connections: raw.connections ?? [],
+        isVolunteer: raw.isVolunteer ?? false,
       };
       setProfile(data);
-      updateUser({
-        bio: data.bio ?? undefined,
-        phone: data.phone ?? undefined,
-        profilePicture: data.profilePicture ?? undefined,
-        isAgeVerified: data.isAgeVerified,
-        isMinorVerified: data.isMinorVerified,
-      });
+
+      // Only self-update if it's "me"
+      if (!userId) {
+        updateUser({
+          bio: data.bio ?? undefined,
+          phone: data.phone ?? undefined,
+          profilePicture: data.profilePicture ?? undefined,
+          isAgeVerified: data.isAgeVerified,
+          isMinorVerified: data.isMinorVerified,
+          ageVerificationStatus: data.ageVerificationStatus,
+        });
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, userId]);
 
   useEffect(() => {
     if (token) refresh();
-  }, [token]);
+  }, [token, refresh]);
 
   const updateBio = useCallback(async (bio: string): Promise<void> => {
     const res = await fetch(`${BASE_URL}/api/profile/bio`, {
@@ -157,10 +156,10 @@ export function useProfile() {
   }, [token, updateUser]);
 
   const applyForVolunteer = useCallback(async (why: string, experience: string, skillsToShare: string): Promise<void> => {
-    const res = await fetch(`${BASE_URL}/api/profile/volunteer`, {
+    const res = await fetch(`${BASE_URL}/api/verification/submit`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ why, experience, skillsToShare }),
+      body: JSON.stringify({ type: 'VOLUNTEER', why, experience, skillsToShare }),
     });
     if (!res.ok) throw new Error(await parseError(res, 'Failed to apply for volunteer badge'));
     setProfile(p => p ? { ...p, volunteerStatus: 'PENDING', isVolunteer: true } : p);

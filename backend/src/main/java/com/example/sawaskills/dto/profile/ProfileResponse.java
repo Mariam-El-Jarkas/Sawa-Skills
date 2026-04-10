@@ -25,6 +25,8 @@ public class ProfileResponse {
     private String volunteerStatus;
     private boolean isAgeVerified;
     private boolean isMinorVerified;
+    private boolean isVolunteer;
+    private String ageVerificationStatus;
 
     // Reviews list (for profile page display)
     private List<ReviewDto> reviews;

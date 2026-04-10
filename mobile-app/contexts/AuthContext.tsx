@@ -1,16 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { BASE_URL, setOnUnauthorized } from '../services/api';
 
-const getBaseUrl = (): string => {
-  if (Platform.OS === 'web') return 'http://localhost:8080';
-  const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  if (host && host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:8080`;
-  return 'http://10.0.2.2:8080';
-};
-
-const BASE_URL = getBaseUrl();
 const TOKEN_KEY = 'auth_token';
 
 // expo-secure-store doesn't work on web — fall back to in-memory
@@ -36,6 +29,7 @@ interface User {
   bio?: string;
   phone?: string;
   profilePicture?: string;
+  ageVerificationStatus?: string | null;
 }
 
 interface AuthContextType {
@@ -51,7 +45,7 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<boolean>;
   resetPassword: (email: string, code: string, newPassword: string) => Promise<boolean>;
   loginWithSocial: (provider: 'GOOGLE' | 'FACEBOOK' | 'GITHUB', accessToken: string, redirectUri?: string) => Promise<boolean>;
-  verifyAge: () => Promise<boolean>;
+  verifyAge: (data: { fullName: string, dob: string, idFrontImage: string | null, idBackImage: string | null, selfieImage: string | null }) => Promise<boolean>;
   verifyMinor: (parentEmail: string) => Promise<boolean>;
   updateUser: (updates: Partial<User>) => void;
   showLoginPrompt: boolean;
@@ -69,6 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session on app launch
   useEffect(() => {
+    setOnUnauthorized(async () => {
+      await deleteToken();
+      setIsLoggedIn(false);
+      setUser(null);
+      setToken(null);
+      router.replace('/auth');
+    });
+
     (async () => {
       try {
         const stored = await loadToken();
@@ -205,22 +207,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, ...updates } : prev);
   };
 
-  const verifyAge = async (): Promise<boolean> => {
-    await new Promise(r => setTimeout(r, 1500));
-    if (user) { setUser({ ...user, isAgeVerified: true, isMinorVerified: false }); return true; }
-    return false;
+  const verifyAge = async (data: any): Promise<boolean> => {
+    try {
+      if (!user || !token) return false;
+      const res = await fetch(`${BASE_URL}/api/verification/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...data, type: data.type || 'ADULT' }),
+      });
+      return res.ok;
+    } catch { return false; }
   };
 
   const verifyMinor = async (parentEmail: string): Promise<boolean> => {
     try {
       if (!user || !token) return false;
-      const res = await fetch(`${BASE_URL}/api/verification/minor/request`, {
+      const res = await fetch(`${BASE_URL}/api/verification/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ parentEmail }),
+        body: JSON.stringify({ parentEmail, type: 'MINOR' }),
       });
-      if (res.ok) { setUser({ ...user, isMinorVerified: true, isAgeVerified: false }); return true; }
-      return false;
+      return res.ok;
     } catch { return false; }
   };
 

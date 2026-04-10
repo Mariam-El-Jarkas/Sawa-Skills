@@ -1,22 +1,40 @@
 import { create } from 'zustand'
 
+const BASE_URL = 'http://localhost:8080'
+
 export const useAuthStore = create((set) => ({
   admin: null,
   token: null,
   isAuthenticated: false,
 
   login: async (email, password) => {
-    // Mock login — replace with real API call
-    await new Promise(r => setTimeout(r, 800))
-    if (email === 'admin@sawa.com' && password === 'admin123') {
-      const admin = { id: 'A001', name: 'Platform Admin', email, role: 'super_admin' }
-      const token = 'mock-jwt-token-' + Date.now()
-      set({ admin, token, isAuthenticated: true })
-      localStorage.setItem('admin_token', token)
-      localStorage.setItem('admin_data', JSON.stringify(admin))
-      return true
+    try {
+      const res = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const admin = { 
+          id: data.userId, 
+          name: data.name, 
+          email: data.email, 
+          role: data.role 
+        }
+        const token = data.accessToken
+        
+        set({ admin, token, isAuthenticated: true })
+        localStorage.setItem('admin_token', token)
+        localStorage.setItem('admin_data', JSON.stringify(admin))
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   },
 
   logout: () => {
@@ -27,8 +45,8 @@ export const useAuthStore = create((set) => ({
 }))
 
 // Rehydrate from localStorage on page reload
-const token = localStorage.getItem('admin_token')
+const storedToken = localStorage.getItem('admin_token')
 const adminData = localStorage.getItem('admin_data')
-if (token && adminData) {
-  useAuthStore.setState({ token, admin: JSON.parse(adminData), isAuthenticated: true })
+if (storedToken && adminData) {
+  useAuthStore.setState({ token: storedToken, admin: JSON.parse(adminData), isAuthenticated: true })
 }

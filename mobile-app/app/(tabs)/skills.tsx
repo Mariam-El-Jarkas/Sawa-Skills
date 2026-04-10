@@ -1,46 +1,147 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
 import { Search, Filter, Plus, MapPin, Star, ArrowLeft, Globe, X, Trash2, Eye, EyeOff } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSkills } from '../../hooks/useSkills';
 import { SwapRequestModal } from '../../components/SwapRequestModal';
+import { swapsService } from '../../services/swapsService';
 import { C } from '../../components/theme';
 
-const allSkills = [
-  { id: 1, user: 'Sarah M.', skill: 'Cooking', wantSkill: 'Guitar Lessons', location: 'Beirut', rating: 4.8, image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=300', availability: 'On-site' },
-  { id: 2, user: 'John D.', skill: 'Guitar Lessons', wantSkill: 'Arabic Tutoring', location: 'Tripoli', rating: 4.9, image: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=300', availability: 'On-site' },
-  { id: 3, user: 'Maya K.', skill: 'Arabic Tutoring', wantSkill: 'Cooking', location: 'Beirut', rating: 5.0, image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=300', availability: 'On-site' },
-  { id: 4, user: 'David C.', skill: 'Web Development', wantSkill: 'Digital Marketing', location: 'Online', rating: 4.7, image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300', availability: 'Remote' },
-];
-const categories = ['All', 'Cooking', 'Music', 'Languages', 'Tech', 'Art', 'Sports', 'Business'];
+const ALL_CATEGORY = 'All';
 
 export default function SkillsScreen() {
   const router = useRouter();
-  const { isLoggedIn, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
+  const {
+    listings, categories, myListings, myOffered, myWanted,
+    isLoading, isMyDataLoading, error,
+    fetchListings, fetchMyData,
+    createListing, deleteListing,
+    addOfferedSkill, addWantedSkill, toggleVisibility,
+  } = useSkills();
+
   const [view, setView] = useState<'browse' | 'my-exchange' | 'add'>('browse');
-  const [selectedCat, setSelectedCat] = useState('All');
+  const [selectedCat, setSelectedCat] = useState(ALL_CATEGORY);
   const [availFilter, setAvailFilter] = useState<'All' | 'Remote' | 'On-site'>('All');
   const [showFilter, setShowFilter] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [requestedSwaps, setRequestedSwaps] = useState<number[]>([]);
   const [showSwapModal, setShowSwapModal] = useState(false);
-  const [targetUser, setTargetUser] = useState('');
-  const [targetSkill, setTargetSkill] = useState('');
-  const [targetId, setTargetId] = useState<number | null>(null);
-  const [listings, setListings] = useState([{ id: 1, offer: 'Web Development', want: 'Photography', location: 'Beirut • Online' }]);
-  const [offerSkills, setOfferSkills] = useState([{ id: 1, name: 'React JS', description: 'Modern React', category: 'Tech', isPublic: true }]);
-  const [wantSkills, setWantSkills] = useState([{ id: 1, name: 'Guitar', description: 'Acoustic or Electric', category: 'Music', isPublic: true }]);
+  const [swapTarget, setSwapTarget] = useState<{ ownerId: number; ownerName: string; offeredSkill: string; listingId: number } | null>(null);
   const [addMode, setAddMode] = useState<'listing' | 'offer' | 'want'>('listing');
   const [newListing, setNewListing] = useState({ offer: '', want: '', location: '' });
   const [newSkill, setNewSkill] = useState({ name: '', description: '', category: 'Tech' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const filtered = allSkills.filter(sk => {
-    const catOk = selectedCat === 'All' || sk.skill.toLowerCase().includes(selectedCat.toLowerCase());
-    const availOk = availFilter === 'All' || sk.availability === availFilter;
-    return catOk && availOk;
-  });
+  // Load my data when switching to my-exchange tab
+  useEffect(() => {
+    if (view === 'my-exchange' && isLoggedIn) {
+      fetchMyData();
+    }
+  }, [view, isLoggedIn]);
+
+  // Re-fetch on filter changes with debounce (handled inside useSkills)
+  useEffect(() => {
+    fetchListings({ search: searchText || undefined, category: selectedCat, availability: availFilter });
+  }, [searchText, selectedCat, availFilter]);
+
+  const displayCategories = [ALL_CATEGORY, ...categories.filter(c => c !== ALL_CATEGORY)];
+
+  const handleRequestSwap = (listing: typeof listings[0]) => {
+    if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+    if (requestedSwaps.includes(listing.id)) return;
+    setSwapTarget({ ownerId: listing.ownerId, ownerName: listing.ownerName, offeredSkill: listing.offeredSkill, listingId: listing.id });
+    setShowSwapModal(true);
+  };
+
+  const handleSwapConfirm = async (data: { offeredSkill: string; note: string; time: string }) => {
+    if (!token || !swapTarget) return;
+    try {
+      await swapsService.createSwap({
+        receiverId: swapTarget.ownerId,
+        offeredSkill: data.offeredSkill,
+        wantedSkill: swapTarget.offeredSkill,
+        preferredTime: data.time,
+        note: data.note,
+      }, token);
+      setRequestedSwaps(prev => [...prev, swapTarget.listingId]);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to send swap request');
+    }
+  };
+
+  const handleCreateListing = async () => {
+    const errs: Record<string, string> = {};
+    if (!newListing.offer.trim()) errs.offer = 'Skill you offer is required.';
+    else if (newListing.offer.trim().length > 100) errs.offer = 'Max 100 characters.';
+    if (!newListing.want.trim()) errs.want = 'Skill you want is required.';
+    else if (newListing.want.trim().length > 100) errs.want = 'Max 100 characters.';
+    if (newListing.location.trim().length > 100) errs.location = 'Max 100 characters.';
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setIsSaving(true);
+    try {
+      await createListing({ offeredSkill: newListing.offer, wantedSkill: newListing.want, location: newListing.location, availability: 'On-site' });
+      setNewListing({ offer: '', want: '', location: '' });
+      setFormErrors({});
+      setView('my-exchange');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to create listing');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddSkill = async () => {
+    const errs: Record<string, string> = {};
+    if (!newSkill.name.trim()) errs.name = 'Skill name is required.';
+    else if (newSkill.name.trim().length > 100) errs.name = 'Max 100 characters.';
+    if (newSkill.description.trim().length > 300) errs.description = 'Description max 300 characters.';
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setIsSaving(true);
+    try {
+      if (addMode === 'offer') {
+        await addOfferedSkill({ skillName: newSkill.name, description: newSkill.description, category: newSkill.category });
+      } else {
+        await addWantedSkill({ skillName: newSkill.name, description: newSkill.description, category: newSkill.category });
+      }
+      setNewSkill({ name: '', description: '', category: 'Tech' });
+      setFormErrors({});
+      setView('my-exchange');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to add skill');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteListing = async (id: number) => {
+    try {
+      await deleteListing(id);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to delete listing');
+    }
+  };
+
+  // Offered skills formatted for SwapRequestModal
+  const offeredForModal = myOffered.map(s => ({ id: s.id, name: s.skillName }));
 
   return (
-    <ScrollView style={s.screen} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.screen}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isLoading}
+          onRefresh={() => fetchListings({ search: searchText || undefined, category: selectedCat, availability: availFilter })}
+          colors={[C.violet600]}
+          tintColor={C.violet600}
+        />
+      }
+    >
       <View style={s.body}>
         {isLoggedIn && (
           <View style={s.viewTabs}>
@@ -52,12 +153,19 @@ export default function SkillsScreen() {
           </View>
         )}
 
+        {/* ── Browse ── */}
         {(view === 'browse' || !isLoggedIn) && (
           <>
             <View style={s.searchRow}>
               <View style={s.searchBox}>
                 <Search size={18} color={C.gray400} />
-                <TextInput style={s.searchInput} placeholder="Search skills..." placeholderTextColor={C.gray400} />
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Search skills..."
+                  placeholderTextColor={C.gray400}
+                  value={searchText}
+                  onChangeText={setSearchText}
+                />
               </View>
               <TouchableOpacity style={s.filterBtn} onPress={() => setShowFilter(true)}>
                 <Filter size={20} color={C.gray700} />
@@ -65,61 +173,68 @@ export default function SkillsScreen() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll}>
-              {categories.map(cat => (
+              {displayCategories.map(cat => (
                 <TouchableOpacity key={cat} style={[s.catPill, selectedCat === cat && s.catPillActive]} onPress={() => setSelectedCat(cat)}>
                   <Text style={[s.catTxt, selectedCat === cat && s.catTxtActive]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <View style={s.skillsList}>
-              {filtered.map(skill => (
-                <View key={skill.id} style={s.skillCard}>
-                  <View style={s.skillTop}>
-                    <Image source={{ uri: skill.image }} style={s.skillImg} />
-                    <View style={s.skillInfo}>
-                      <View style={s.skillInfoTop}>
-                        <View>
-                          <Text style={s.skillUser}>{skill.user}</Text>
-                          <View style={s.locRow}>
-                            {skill.availability === 'Remote' ? <Globe size={12} color={C.gray500} /> : <MapPin size={12} color={C.gray500} />}
-                            <Text style={s.locTxt}>{skill.location}</Text>
-                          </View>
-                        </View>
-                        <View style={s.ratingRow}>
-                          <Star size={14} color={C.yellow400} fill={C.yellow400} />
-                          <Text style={s.ratingTxt}>{skill.rating}</Text>
+            {isLoading ? (
+              <ActivityIndicator size="large" color={C.violet600} style={{ marginTop: 32 }} />
+            ) : error ? (
+              <Text style={s.errorTxt}>{error}</Text>
+            ) : listings.length === 0 ? (
+              <View style={s.empty}><Text style={s.emptyTxt}>No skills found. Try a different search.</Text></View>
+            ) : (
+              <View style={s.skillsList}>
+                {listings.map(skill => (
+                  <View key={skill.id} style={s.skillCard}>
+                    <View style={s.skillTop}>
+                      <View style={s.skillAvatarWrap}>
+                        <View style={s.skillAvatar}>
+                          <Text style={s.skillAvatarTxt}>{skill.ownerInitials}</Text>
                         </View>
                       </View>
-                      <Text style={s.offersTxt}>Offers: <Text style={s.offersSkill}>{skill.skill}</Text></Text>
-                      <Text style={s.wantsTxt}>Wants: <Text style={s.wantsSkill}>{skill.wantSkill}</Text></Text>
+                      <View style={s.skillInfo}>
+                        <View style={s.skillInfoTop}>
+                          <View>
+                            <Text style={s.skillUser}>{skill.ownerName}</Text>
+                            <View style={s.locRow}>
+                              {skill.availability === 'Remote' ? <Globe size={12} color={C.gray500} /> : <MapPin size={12} color={C.gray500} />}
+                              <Text style={s.locTxt}>{skill.location ?? skill.availability ?? 'Flexible'}</Text>
+                            </View>
+                          </View>
+                          <View style={s.ratingRow}>
+                            <Star size={14} color={C.yellow400} fill={C.yellow400} />
+                            <Text style={s.ratingTxt}>{skill.avgRating > 0 ? skill.avgRating.toFixed(1) : '—'}</Text>
+                          </View>
+                        </View>
+                        <Text style={s.offersTxt}>Offers: <Text style={s.offersSkill}>{skill.offeredSkill}</Text></Text>
+                        <Text style={s.wantsTxt}>Wants: <Text style={s.wantsSkill}>{skill.wantedSkill}</Text></Text>
+                      </View>
+                    </View>
+                    <View style={s.skillBtns}>
+                      <TouchableOpacity
+                        style={[s.reqBtn, requestedSwaps.includes(skill.id) && s.reqBtnDone]}
+                        onPress={() => handleRequestSwap(skill)}
+                      >
+                        <Text style={[s.reqBtnTxt, requestedSwaps.includes(skill.id) && s.reqBtnTxtDone]}>
+                          {requestedSwaps.includes(skill.id) ? 'Requested ✓' : 'Request Swap'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.profileBtn} onPress={() => router.push(`/profile?userId=${skill.ownerId}`)}>
+                        <Text style={s.profileBtnTxt}>View Profile</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
-                  <View style={s.skillBtns}>
-                    <TouchableOpacity
-                      style={[s.reqBtn, requestedSwaps.includes(skill.id) && s.reqBtnDone]}
-                      onPress={() => {
-                        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-                        if (!requestedSwaps.includes(skill.id)) {
-                          setTargetUser(skill.user); setTargetSkill(skill.skill); setTargetId(skill.id);
-                          setShowSwapModal(true);
-                        }
-                      }}
-                    >
-                      <Text style={[s.reqBtnTxt, requestedSwaps.includes(skill.id) && s.reqBtnTxtDone]}>
-                        {requestedSwaps.includes(skill.id) ? 'Requested ✓' : 'Request Swap'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.profileBtn} onPress={() => router.push('/profile')}>
-                      <Text style={s.profileBtnTxt}>View Profile</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
           </>
         )}
 
+        {/* ── My Exchange ── */}
         {view === 'my-exchange' && (
           <View style={s.myExchange}>
             <Text style={s.meTitle}>My Exchange</Text>
@@ -128,53 +243,62 @@ export default function SkillsScreen() {
               <Plus size={20} color="#fff" />
               <Text style={s.createBtnTxt}>Create New Listing</Text>
             </TouchableOpacity>
-            <Text style={s.meSection}>ACTIVE LISTINGS</Text>
-            {listings.map(l => (
-              <View key={l.id} style={s.listingCard}>
-                <View style={s.listingTop}>
-                  <View style={s.listingLoc}>
-                    <MapPin size={13} color={C.gray500} />
-                    <Text style={s.listingLocTxt}>{l.location}</Text>
+
+            {isMyDataLoading ? (
+              <ActivityIndicator size="small" color={C.violet600} style={{ marginTop: 16 }} />
+            ) : (
+              <>
+                <Text style={s.meSection}>ACTIVE LISTINGS</Text>
+                {myListings.length === 0 && <Text style={s.emptyTxt}>No listings yet.</Text>}
+                {myListings.map(l => (
+                  <View key={l.id} style={s.listingCard}>
+                    <View style={s.listingTop}>
+                      <View style={s.listingLoc}>
+                        <MapPin size={13} color={C.gray500} />
+                        <Text style={s.listingLocTxt}>{l.location ?? l.availability ?? 'Flexible'}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => handleDeleteListing(l.id)}>
+                        <Trash2 size={16} color={C.gray400} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={s.listingRow}><View style={s.offerTag}><Text style={s.offerTagTxt}>OFFER</Text></View><Text style={s.listingSkill}>{l.offeredSkill}</Text></View>
+                    <View style={s.listingRow}><View style={s.wantTag}><Text style={s.wantTagTxt}>WANT</Text></View><Text style={s.listingSkill}>{l.wantedSkill}</Text></View>
                   </View>
-                  <TouchableOpacity onPress={() => setListings(listings.filter(x => x.id !== l.id))}>
-                    <Trash2 size={16} color={C.gray400} />
-                  </TouchableOpacity>
-                </View>
-                <View style={s.listingRow}><View style={s.offerTag}><Text style={s.offerTagTxt}>OFFER</Text></View><Text style={s.listingSkill}>{l.offer}</Text></View>
-                <View style={s.listingRow}><View style={s.wantTag}><Text style={s.wantTagTxt}>WANT</Text></View><Text style={s.listingSkill}>{l.want}</Text></View>
-              </View>
-            ))}
+                ))}
 
-            <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I OFFER</Text>
-            <TouchableOpacity onPress={() => { setView('add'); setAddMode('offer'); }} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
-            {offerSkills.map(sk => (
-              <View key={sk.id} style={s.skillRow}>
-                <View style={s.skillRowInfo}>
-                  <Text style={s.skillRowName}>{sk.name}</Text>
-                  <Text style={s.skillRowDesc}>{sk.description}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setOfferSkills(prev => prev.map(x => x.id === sk.id ? { ...x, isPublic: !x.isPublic } : x))}>
-                  {sk.isPublic ? <Eye size={18} color={C.violet600} /> : <EyeOff size={18} color={C.gray400} />}
-                </TouchableOpacity>
-              </View>
-            ))}
+                <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I OFFER</Text>
+                <TouchableOpacity onPress={() => { setView('add'); setAddMode('offer'); }} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
+                {myOffered.map(sk => (
+                  <View key={sk.id} style={s.skillRow}>
+                    <View style={s.skillRowInfo}>
+                      <Text style={s.skillRowName}>{sk.skillName}</Text>
+                      {sk.category && <Text style={s.skillRowDesc}>{sk.category}</Text>}
+                    </View>
+                    <TouchableOpacity onPress={() => toggleVisibility(sk.id)}>
+                      <Eye size={18} color={C.violet600} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
-            <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I WANT</Text>
-            <TouchableOpacity onPress={() => { setView('add'); setAddMode('want'); }} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
-            {wantSkills.map(sk => (
-              <View key={sk.id} style={s.skillRow}>
-                <View style={s.skillRowInfo}>
-                  <Text style={s.skillRowName}>{sk.name}</Text>
-                  <Text style={s.skillRowDesc}>{sk.description}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setWantSkills(prev => prev.map(x => x.id === sk.id ? { ...x, isPublic: !x.isPublic } : x))}>
-                  {sk.isPublic ? <Eye size={18} color={C.violet600} /> : <EyeOff size={18} color={C.gray400} />}
-                </TouchableOpacity>
-              </View>
-            ))}
+                <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I WANT</Text>
+                <TouchableOpacity onPress={() => { setView('add'); setAddMode('want'); }} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
+                {myWanted.map(sk => (
+                  <View key={sk.id} style={s.skillRow}>
+                    <View style={s.skillRowInfo}>
+                      <Text style={s.skillRowName}>{sk.skillName}</Text>
+                      {sk.category && <Text style={s.skillRowDesc}>{sk.category}</Text>}
+                    </View>
+                    <TouchableOpacity onPress={() => toggleVisibility(sk.id)}>
+                      <Eye size={18} color={C.violet600} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
         )}
 
+        {/* ── Add View ── */}
         {view === 'add' && (
           <View style={s.addView}>
             <View style={s.addHeader}>
@@ -185,41 +309,58 @@ export default function SkillsScreen() {
               {addMode === 'listing' ? (
                 <>
                   {(['location', 'offer', 'want'] as const).map(field => (
-                    <View key={field}>
-                      <Text style={s.fieldLabel}>{field.toUpperCase()}</Text>
-                      <TextInput
-                        style={s.fieldInput}
-                        value={newListing[field]}
-                        onChangeText={v => setNewListing({ ...newListing, [field]: v })}
-                        placeholder={field === 'location' ? 'e.g. Beirut or Remote' : `Skill you ${field}`}
-                        placeholderTextColor={C.gray400}
-                      />
-                    </View>
-                  ))}
-                  <TouchableOpacity style={s.publishBtn} onPress={() => {
-                    if (!newListing.offer || !newListing.want) return;
-                    setListings([...listings, { id: Date.now(), ...newListing }]);
-                    setNewListing({ offer: '', want: '', location: '' });
-                    setView('my-exchange');
-                  }}>
-                    <Text style={s.publishBtnTxt}>Publish Listing</Text>
+                  <View key={field}>
+                    <Text style={s.fieldLabel}>{field.toUpperCase()}{field !== 'location' ? ' *' : ''}</Text>
+                    <TextInput
+                      style={[s.fieldInput, formErrors[field] ? s.fieldInputError : null]}
+                      value={newListing[field]}
+                      onChangeText={v => {
+                        setNewListing({ ...newListing, [field]: v });
+                        if (formErrors[field]) setFormErrors(e => { const n = { ...e }; delete n[field]; return n; });
+                      }}
+                      placeholder={field === 'location' ? 'e.g. Beirut or Remote' : `Skill you ${field}`}
+                      placeholderTextColor={C.gray400}
+                      maxLength={field === 'location' ? 100 : 100}
+                    />
+                    {formErrors[field] && <Text style={s.fieldError}>{formErrors[field]}</Text>}
+                  </View>
+                ))}
+                  <TouchableOpacity style={[s.publishBtn, isSaving && s.publishBtnDisabled]} onPress={handleCreateListing} disabled={isSaving}>
+                    <Text style={s.publishBtnTxt}>{isSaving ? 'Publishing...' : 'Publish Listing'}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={s.fieldLabel}>SKILL NAME</Text>
-                  <TextInput style={s.fieldInput} value={newSkill.name} onChangeText={v => setNewSkill({ ...newSkill, name: v })} placeholder="e.g. Graphic Design" placeholderTextColor={C.gray400} />
+                  <Text style={s.fieldLabel}>SKILL NAME *</Text>
+                  <TextInput
+                    style={[s.fieldInput, formErrors.name ? s.fieldInputError : null]}
+                    value={newSkill.name}
+                    onChangeText={v => {
+                      setNewSkill({ ...newSkill, name: v });
+                      if (formErrors.name) setFormErrors(e => { const n = { ...e }; delete n.name; return n; });
+                    }}
+                    placeholder="e.g. Graphic Design"
+                    placeholderTextColor={C.gray400}
+                    maxLength={100}
+                  />
+                  {formErrors.name && <Text style={s.fieldError}>{formErrors.name}</Text>}
                   <Text style={s.fieldLabel}>SHORT DESCRIPTION</Text>
-                  <TextInput style={[s.fieldInput, s.textarea]} value={newSkill.description} onChangeText={v => setNewSkill({ ...newSkill, description: v })} placeholder="Briefly describe..." multiline placeholderTextColor={C.gray400} />
-                  <TouchableOpacity style={s.publishBtn} onPress={() => {
-                    if (!newSkill.name) return;
-                    const obj = { id: Date.now(), ...newSkill, isPublic: true };
-                    if (addMode === 'offer') setOfferSkills([...offerSkills, obj]);
-                    else setWantSkills([...wantSkills, obj]);
-                    setNewSkill({ name: '', description: '', category: 'Tech' });
-                    setView('my-exchange');
-                  }}>
-                    <Text style={s.publishBtnTxt}>Save to Profile</Text>
+                  <TextInput
+                    style={[s.fieldInput, s.textarea, formErrors.description ? s.fieldInputError : null]}
+                    value={newSkill.description}
+                    onChangeText={v => {
+                      setNewSkill({ ...newSkill, description: v });
+                      if (formErrors.description) setFormErrors(e => { const n = { ...e }; delete n.description; return n; });
+                    }}
+                    placeholder="Briefly describe..."
+                    multiline
+                    placeholderTextColor={C.gray400}
+                    maxLength={300}
+                  />
+                  <Text style={[s.fieldLabel, { textAlign: 'right', marginTop: -8 }]}>{newSkill.description.length}/300</Text>
+                  {formErrors.description && <Text style={s.fieldError}>{formErrors.description}</Text>}
+                  <TouchableOpacity style={[s.publishBtn, isSaving && s.publishBtnDisabled]} onPress={handleAddSkill} disabled={isSaving}>
+                    <Text style={s.publishBtnTxt}>{isSaving ? 'Saving...' : 'Save to Profile'}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -238,7 +379,7 @@ export default function SkillsScreen() {
             </View>
             <Text style={s.filterLabel}>CATEGORY</Text>
             <View style={s.filterGrid}>
-              {categories.slice(1).map(cat => (
+              {categories.map(cat => (
                 <TouchableOpacity key={cat} style={[s.filterOpt, selectedCat === cat && s.filterOptActive]} onPress={() => setSelectedCat(cat)}>
                   <Text style={[s.filterOptTxt, selectedCat === cat && s.filterOptTxtActive]}>{cat}</Text>
                 </TouchableOpacity>
@@ -259,7 +400,14 @@ export default function SkillsScreen() {
         </View>
       </Modal>
 
-      <SwapRequestModal isOpen={showSwapModal} onClose={() => setShowSwapModal(false)} targetUser={targetUser} targetSkill={targetSkill} userSkills={offerSkills} onConfirm={() => { if (targetId) setRequestedSwaps([...requestedSwaps, targetId]); }} />
+      <SwapRequestModal
+        isOpen={showSwapModal}
+        onClose={() => setShowSwapModal(false)}
+        targetUser={swapTarget?.ownerName ?? ''}
+        targetSkill={swapTarget?.offeredSkill ?? ''}
+        userSkills={offeredForModal.length > 0 ? offeredForModal : [{ id: 0, name: 'My Skill' }]}
+        onConfirm={handleSwapConfirm}
+      />
     </ScrollView>
   );
 }
@@ -284,7 +432,9 @@ const s = StyleSheet.create({
   skillsList: { gap: 12 },
   skillCard: { backgroundColor: C.white, borderRadius: 16, overflow: 'hidden', borderWidth: 2, borderColor: '#DDD6FE' },
   skillTop: { flexDirection: 'row' },
-  skillImg: { width: 96, height: 96 },
+  skillAvatarWrap: { width: 80, alignItems: 'center', justifyContent: 'center', padding: 12 },
+  skillAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.violet600, alignItems: 'center', justifyContent: 'center' },
+  skillAvatarTxt: { color: C.white, fontWeight: '700', fontSize: 18 },
   skillInfo: { flex: 1, padding: 10 },
   skillInfoTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   skillUser: { fontSize: 14, fontWeight: '600', color: C.gray900 },
@@ -303,6 +453,9 @@ const s = StyleSheet.create({
   reqBtnTxtDone: { color: C.violet600 },
   profileBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#DDD6FE' },
   profileBtnTxt: { color: C.violet600, fontSize: 13, fontWeight: '500' },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyTxt: { color: C.gray500, fontSize: 14, textAlign: 'center' },
+  errorTxt: { color: '#DC2626', fontSize: 13, textAlign: 'center', paddingVertical: 16 },
   myExchange: { gap: 12 },
   meTitle: { fontSize: 22, fontWeight: '700', color: C.gray900 },
   meSub: { fontSize: 13, color: C.gray500, marginTop: -8 },
@@ -332,8 +485,11 @@ const s = StyleSheet.create({
   addForm: { backgroundColor: C.white, borderRadius: 20, padding: 20, gap: 12, borderWidth: 1, borderColor: C.gray100 },
   fieldLabel: { fontSize: 10, fontWeight: '700', color: C.gray400, letterSpacing: 1, marginBottom: 4 },
   fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, fontWeight: '600', color: C.gray900 },
+  fieldInputError: { borderWidth: 1.5, borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  fieldError: { fontSize: 12, color: '#DC2626', marginTop: 3, marginLeft: 4 },
   textarea: { height: 72, textAlignVertical: 'top' },
   publishBtn: { backgroundColor: C.violet600, paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  publishBtnDisabled: { opacity: 0.6 },
   publishBtnTxt: { color: C.white, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },

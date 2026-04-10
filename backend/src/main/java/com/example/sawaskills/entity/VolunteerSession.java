@@ -28,4 +28,7 @@ public class VolunteerSession {
     @JoinColumn(name="organizer_id")
     private User organizer;
 
+    @OneToOne
+    @JoinColumn(name="conversation_id")
+    private Conversation groupChat;
 }

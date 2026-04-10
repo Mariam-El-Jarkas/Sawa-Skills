@@ -15,13 +15,23 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
   const [note, setNote] = useState('');
   const [time, setTime] = useState('');
   const [success, setSuccess] = useState(false);
+  const [errors, setErrors] = useState<{ skill?: string; note?: string; time?: string }>({});
+
+  const validate = () => {
+    const errs: typeof errors = {};
+    if (!selectedId) errs.skill = 'Please select a skill to offer.';
+    if (note.length > 500) errs.note = `Note is too long (${note.length}/500 chars).`;
+    if (time.trim() && time.trim().length > 100) errs.time = 'Preferred time must be under 100 characters.';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const submit = () => {
-    if (!selectedId) return;
+    if (!validate()) return;
     setSuccess(true);
     setTimeout(() => {
       onConfirm({ targetUser, targetSkill, offeredSkill: userSkills.find(s => s.id === selectedId)?.name, note, time });
-      onClose(); setSuccess(false); setNote(''); setTime('');
+      onClose(); setSuccess(false); setNote(''); setTime(''); setErrors({});
     }, 2000);
   };
 
@@ -49,14 +59,36 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
               <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
                 <Text style={s.label}>I OFFER IN RETURN</Text>
                 {userSkills.map(skill => (
-                  <TouchableOpacity key={skill.id} style={[s.opt, selectedId === skill.id && s.optActive]} onPress={() => setSelectedId(skill.id)}>
+                  <TouchableOpacity key={skill.id} style={[s.opt, selectedId === skill.id && s.optActive]} onPress={() => { setSelectedId(skill.id); setErrors(e => ({ ...e, skill: undefined })); }}>
                     <Text style={[s.optTxt, selectedId === skill.id && s.optTxtActive]}>{skill.name}</Text>
                   </TouchableOpacity>
                 ))}
+                {errors.skill && <Text style={s.errorTxt}>{errors.skill}</Text>}
+
                 <Text style={[s.label, { marginTop: 16 }]}>PREFERRED TIME</Text>
-                <TextInput style={s.input} placeholder="e.g. Weekends, 3 PM" value={time} onChangeText={setTime} placeholderTextColor={C.gray400} />
+                <TextInput
+                  style={[s.input, errors.time ? s.inputError : null]}
+                  placeholder="e.g. Weekends, 3 PM"
+                  value={time}
+                  onChangeText={v => { setTime(v); if (errors.time) setErrors(e => ({ ...e, time: undefined })); }}
+                  placeholderTextColor={C.gray400}
+                  maxLength={100}
+                />
+                {errors.time && <Text style={s.errorTxt}>{errors.time}</Text>}
+
                 <Text style={[s.label, { marginTop: 16 }]}>NOTE (OPTIONAL)</Text>
-                <TextInput style={[s.input, s.textarea]} placeholder="Introduce yourself..." value={note} onChangeText={setNote} multiline numberOfLines={3} placeholderTextColor={C.gray400} />
+                <TextInput
+                  style={[s.input, s.textarea, errors.note ? s.inputError : null]}
+                  placeholder="Introduce yourself..."
+                  value={note}
+                  onChangeText={v => { setNote(v); if (errors.note) setErrors(e => ({ ...e, note: undefined })); }}
+                  multiline
+                  numberOfLines={3}
+                  placeholderTextColor={C.gray400}
+                  maxLength={500}
+                />
+                <Text style={[s.charCount, note.length > 450 && s.charCountWarn]}>{note.length}/500</Text>
+                {errors.note && <Text style={s.errorTxt}>{errors.note}</Text>}
               </ScrollView>
               <View style={s.footer}>
                 <TouchableOpacity style={s.cancelBtn} onPress={onClose}><Text style={s.cancelTxt}>Cancel</Text></TouchableOpacity>
@@ -89,8 +121,12 @@ const s = StyleSheet.create({
   optActive: { borderColor: C.violet600, backgroundColor: C.violet50 },
   optTxt: { fontWeight: '600', color: C.gray700 },
   optTxtActive: { color: C.violet600 },
-  input: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, color: C.gray900, marginBottom: 8 },
-  textarea: { height: 80, textAlignVertical: 'top', marginBottom: 24 },
+  input: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, color: C.gray900, marginBottom: 4 },
+  inputError: { borderWidth: 1.5, borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  textarea: { height: 80, textAlignVertical: 'top' },
+  errorTxt: { fontSize: 12, color: '#DC2626', marginBottom: 8, marginLeft: 4 },
+  charCount: { fontSize: 11, color: C.gray400, textAlign: 'right', marginBottom: 8 },
+  charCountWarn: { color: '#D97706' },
   footer: { flexDirection: 'row', gap: 12, padding: 24, borderTopWidth: 1, borderTopColor: C.gray100 },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: C.gray100, alignItems: 'center' },
   cancelTxt: { fontWeight: '600', color: C.gray700 },

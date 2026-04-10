@@ -1,60 +1,142 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet } from 'react-native';
-import { Clock, CheckCircle, XCircle, MessageCircle, Plus, ShieldCheck, Users, X } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
+import { Clock, CheckCircle, XCircle, MessageCircle, ShieldCheck, Users, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSwaps } from '../../hooks/useSwaps';
+import { chatService } from '../../services/chatService';
 import { InlineGuestLoginPrompt } from '../../components/InlineGuestLoginPrompt';
 import { C } from '../../components/theme';
 
-const initialSwaps = [
-  { id: 1, user: 'Sarah M.', userSkill: 'Cooking', mySkill: 'Guitar Lessons', status: 'pending' as const, date: '2026-03-05', compatibility: 85 },
-  { id: 2, user: 'John D.', userSkill: 'Arabic Tutoring', mySkill: 'Web Development', status: 'active' as const, date: '2026-03-03', compatibility: 92 },
-  { id: 3, user: 'Maya K.', userSkill: 'Photography', mySkill: 'Guitar Lessons', status: 'completed' as const, date: '2026-03-01', compatibility: 95 },
-];
-
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending: { bg: C.amber100, text: C.amber700 },
-  active: { bg: C.violet100, text: C.violet600 },
-  completed: { bg: '#D1FAE5', text: C.emerald600 },
+  pending:   { bg: C.amber100,   text: C.amber700 },
+  active:    { bg: C.violet100,  text: C.violet600 },
+  completed: { bg: '#D1FAE5',    text: C.emerald600 },
+  rejected:  { bg: C.gray100,    text: C.gray500 },
 };
 
 export default function SwapsScreen() {
   const router = useRouter();
-  const { isLoggedIn, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
+  const { swaps, isLoading, error, fetchSwaps, acceptSwap, rejectSwap, rateSwap } = useSwaps();
   const [filter, setFilter] = useState<'all' | 'pending' | 'active' | 'completed'>('all');
-  const [swaps, setSwaps] = useState(initialSwaps);
-  const [ratingSwap, setRatingSwap] = useState<number | null>(null);
+  const [ratingSwapId, setRatingSwapId] = useState<number | null>(null);
   const [ratingVal, setRatingVal] = useState(0);
   const [ratingTxt, setRatingTxt] = useState('');
+  const [isRating, setIsRating] = useState(false);
   const [showVerify, setShowVerify] = useState(false);
+  const [pendingAcceptId, setPendingAcceptId] = useState<number | null>(null);
 
-  const displayed = isLoggedIn ? (filter === 'all' ? swaps : swaps.filter(s => s.status === filter)) : [];
+  // Load swaps when logged in, re-fetch on filter change
+  useEffect(() => {
+    if (isLoggedIn) fetchSwaps(filter);
+  }, [isLoggedIn, filter]);
+
+  const handleAccept = async (id: number) => {
+    setPendingAcceptId(id);
+    setShowVerify(true);
+  };
+
+  const handleAcceptConfirmed = async () => {
+    if (!pendingAcceptId) return;
+    setShowVerify(false);
+    try {
+      await acceptSwap(pendingAcceptId);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to accept swap');
+    } finally {
+      setPendingAcceptId(null);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    try {
+      await rejectSwap(id);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to reject swap');
+    }
+  };
+
+  const handleRateSubmit = async () => {
+    if (!ratingSwapId || ratingVal === 0) return;
+    setIsRating(true);
+    try {
+      await rateSwap(ratingSwapId, { rating: ratingVal, comment: ratingTxt || undefined });
+      setRatingSwapId(null);
+      setRatingVal(0);
+      setRatingTxt('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to submit rating');
+    } finally {
+      setIsRating(false);
+    }
+  };
+
+  const handleChat = async (otherUserId: number) => {
+    try {
+      if (!token) { setShowLoginPrompt(true); return; }
+      const conv = await chatService.startConversation(otherUserId, token);
+      router.push({ pathname: '/chat', params: { openId: conv.id } });
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to start conversation');
+    }
+  };
+
+  const displayed = swaps; // filtering is done server-side via fetchSwaps(filter)
 
   return (
-    <ScrollView style={s.screen} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.screen}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isLoading}
+          onRefresh={() => fetchSwaps(filter)}
+          colors={[C.violet600]}
+          tintColor={C.violet600}
+        />
+      }
+    >
       <View style={s.body}>
         <Text style={s.title}>My Swaps</Text>
-        <Text style={s.subtitle}>{displayed.length} swaps</Text>
+        <Text style={s.subtitle}>{displayed.length} swap{displayed.length !== 1 ? 's' : ''}</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll}>
           {(['all', 'pending', 'active', 'completed'] as const).map(f => (
-            <TouchableOpacity key={f} style={[s.filterPill, filter === f && s.filterPillActive]} onPress={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setFilter(f); }}>
-              <Text style={[s.filterTxt, filter === f && s.filterTxtActive]}>{f.charAt(0).toUpperCase() + f.slice(1)}</Text>
+            <TouchableOpacity
+              key={f}
+              style={[s.filterPill, filter === f && s.filterPillActive]}
+              onPress={() => {
+                if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+                setFilter(f);
+              }}
+            >
+              <Text style={[s.filterTxt, filter === f && s.filterTxtActive]}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
         {!isLoggedIn && <InlineGuestLoginPrompt featureName="Swaps" />}
 
-        {isLoggedIn && displayed.map(swap => {
-          const sc = STATUS_COLORS[swap.status];
+        {isLoggedIn && isLoading && (
+          <ActivityIndicator size="large" color={C.violet600} style={{ marginTop: 32 }} />
+        )}
+
+        {isLoggedIn && !isLoading && error && (
+          <Text style={s.errorTxt}>{error}</Text>
+        )}
+
+        {isLoggedIn && !isLoading && displayed.map(swap => {
+          const sc = STATUS_COLORS[swap.status] ?? STATUS_COLORS.pending;
           return (
             <View key={swap.id} style={s.swapCard}>
               <View style={s.swapTop}>
                 <View style={s.swapUser}>
-                  <View style={s.swapAvatar}><Text style={s.swapAvatarTxt}>{swap.user[0]}</Text></View>
+                  <View style={s.swapAvatar}><Text style={s.swapAvatarTxt}>{swap.otherUserInitials}</Text></View>
                   <View>
-                    <Text style={s.swapUserName}>{swap.user}</Text>
+                    <Text style={s.swapUserName}>{swap.otherUserName}</Text>
                     <Text style={s.swapDate}>{swap.date}</Text>
                   </View>
                 </View>
@@ -66,49 +148,47 @@ export default function SwapsScreen() {
               <View style={s.swapSkills}>
                 <View style={s.swapSkillItem}>
                   <Text style={s.swapSkillLabel}>THEY OFFER</Text>
-                  <Text style={s.swapSkillName}>{swap.userSkill}</Text>
+                  <Text style={s.swapSkillName}>{swap.theyOffer}</Text>
                 </View>
                 <View style={s.swapArrow}><Text style={s.swapArrowTxt}>⇄</Text></View>
                 <View style={s.swapSkillItem}>
                   <Text style={s.swapSkillLabel}>YOU OFFER</Text>
-                  <Text style={s.swapSkillName}>{swap.mySkill}</Text>
+                  <Text style={s.swapSkillName}>{swap.youOffer}</Text>
                 </View>
               </View>
 
-              <View style={s.compatRow}>
-                <Text style={s.compatTxt}>Match compatibility</Text>
-                <Text style={s.compatVal}>{swap.compatibility}%</Text>
-              </View>
-              <View style={s.compatBar}>
-                <View style={[s.compatFill, { width: `${swap.compatibility}%` as any }]} />
-              </View>
-
               <View style={s.swapActions}>
-                {swap.status === 'pending' && (
+                {swap.status === 'pending' && !swap.isRequester && (
                   <>
-                    <TouchableOpacity style={s.acceptBtn} onPress={() => setShowVerify(true)}>
+                    <TouchableOpacity style={s.acceptBtn} onPress={() => handleAccept(swap.id)}>
                       <CheckCircle size={16} color={C.white} />
                       <Text style={s.acceptTxt}>Accept</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.rejectBtn} onPress={() => setSwaps(swaps.filter(sw => sw.id !== swap.id))}>
+                    <TouchableOpacity style={s.rejectBtn} onPress={() => handleReject(swap.id)}>
                       <XCircle size={16} color={C.white} />
                       <Text style={s.rejectTxt}>Reject</Text>
                     </TouchableOpacity>
                   </>
                 )}
+                {swap.status === 'pending' && swap.isRequester && (
+                  <TouchableOpacity style={s.rejectBtn} onPress={() => handleReject(swap.id)}>
+                    <XCircle size={16} color={C.white} />
+                    <Text style={s.rejectTxt}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
                 {swap.status === 'active' && (
                   <>
-                    <TouchableOpacity style={s.chatBtn} onPress={() => router.push('/chat')}>
+                    <TouchableOpacity style={s.chatBtn} onPress={() => handleChat(swap.otherUserId)}>
                       <MessageCircle size={16} color={C.white} />
                       <Text style={s.chatTxt}>Chat</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.rateBtn} onPress={() => { setRatingSwap(swap.id); setRatingVal(0); setRatingTxt(''); }}>
+                    <TouchableOpacity style={s.rateBtn} onPress={() => { setRatingSwapId(swap.id); setRatingVal(0); setRatingTxt(''); }}>
                       <Text style={s.rateTxt}>Rate</Text>
                     </TouchableOpacity>
                   </>
                 )}
                 {swap.status === 'completed' && (
-                  <TouchableOpacity style={s.rateFullBtn} onPress={() => { setRatingSwap(swap.id); setRatingVal(0); setRatingTxt(''); }}>
+                  <TouchableOpacity style={s.rateFullBtn} onPress={() => { setRatingSwapId(swap.id); setRatingVal(0); setRatingTxt(''); }}>
                     <Text style={s.rateFullTxt}>Rate Experience</Text>
                   </TouchableOpacity>
                 )}
@@ -117,7 +197,7 @@ export default function SwapsScreen() {
           );
         })}
 
-        {isLoggedIn && displayed.length === 0 && (
+        {isLoggedIn && !isLoading && displayed.length === 0 && !error && (
           <View style={s.empty}>
             <Clock size={48} color={C.gray300} />
             <Text style={s.emptyTxt}>No {filter !== 'all' ? filter : ''} swaps yet</Text>
@@ -126,12 +206,12 @@ export default function SwapsScreen() {
       </View>
 
       {/* Rating Modal */}
-      <Modal visible={ratingSwap !== null} transparent animationType="slide">
+      <Modal visible={ratingSwapId !== null} transparent animationType="slide">
         <View style={s.modalOverlay}>
           <View style={s.ratingSheet}>
             <Text style={s.ratingTitle}>Rate Swap</Text>
             <View style={s.starsRow}>
-              {[1,2,3,4,5].map(star => (
+              {[1, 2, 3, 4, 5].map(star => (
                 <TouchableOpacity key={star} onPress={() => setRatingVal(star)}>
                   <Text style={[s.star, star <= ratingVal && s.starActive]}>★</Text>
                 </TouchableOpacity>
@@ -139,8 +219,16 @@ export default function SwapsScreen() {
             </View>
             <TextInput style={s.ratingInput} placeholder="Write a review (optional)" value={ratingTxt} onChangeText={setRatingTxt} multiline numberOfLines={3} placeholderTextColor={C.gray400} />
             <View style={s.ratingBtns}>
-              <TouchableOpacity style={s.ratingCancel} onPress={() => setRatingSwap(null)}><Text style={s.ratingCancelTxt}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={s.ratingSubmit} onPress={() => setRatingSwap(null)}><Text style={s.ratingSubmitTxt}>Submit</Text></TouchableOpacity>
+              <TouchableOpacity style={s.ratingCancel} onPress={() => setRatingSwapId(null)}>
+                <Text style={s.ratingCancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.ratingSubmit, (ratingVal === 0 || isRating) && s.ratingDisabled]}
+                onPress={handleRateSubmit}
+                disabled={ratingVal === 0 || isRating}
+              >
+                <Text style={s.ratingSubmitTxt}>{isRating ? 'Submitting...' : 'Submit'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -153,13 +241,23 @@ export default function SwapsScreen() {
             <View style={s.verifyHeader}>
               <TouchableOpacity style={s.verifyClose} onPress={() => setShowVerify(false)}><X size={20} color={C.white} /></TouchableOpacity>
               <View style={s.verifyIcon}><ShieldCheck size={32} color={C.white} /></View>
-              <Text style={s.verifyTitle}>Verification Required</Text>
-              <Text style={s.verifySub}>Please verify your account to continue.</Text>
+              <Text style={s.verifyTitle}>Confirm Acceptance</Text>
+              <Text style={s.verifySub}>Review details before accepting this swap.</Text>
             </View>
             <View style={s.verifyBody}>
-              <Text style={s.verifyDesc}>To ensure a safe community, we require all members to confirm their identity before performing swaps.</Text>
-              {[{ icon: ShieldCheck, title: 'Adult Verification', sub: '18 Years or Older' }, { icon: Users, title: 'Minor Verification', sub: 'Under 18 (Parental Approval)' }].map(({ icon: Icon, title, sub }) => (
-                <TouchableOpacity key={title} style={s.verifyOption} onPress={() => { setShowVerify(false); router.push('/profile'); }}>
+              <Text style={s.verifyDesc}>By accepting, you agree to participate in this skill exchange. Make sure you are ready to fulfill your side of the swap.</Text>
+              {[
+                { icon: CheckCircle, title: 'Accept Swap', sub: 'Confirm and start the exchange' },
+                { icon: Users, title: 'Learn More', sub: 'View your verification status' },
+              ].map(({ icon: Icon, title, sub }) => (
+                <TouchableOpacity
+                  key={title}
+                  style={s.verifyOption}
+                  onPress={() => {
+                    if (title === 'Accept Swap') handleAcceptConfirmed();
+                    else { setShowVerify(false); router.push('/profile'); }
+                  }}
+                >
                   <View style={s.verifyOptIcon}><Icon size={20} color={C.violet600} /></View>
                   <View><Text style={s.verifyOptTitle}>{title}</Text><Text style={s.verifyOptSub}>{sub}</Text></View>
                 </TouchableOpacity>
@@ -183,6 +281,7 @@ const s = StyleSheet.create({
   filterPillActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
   filterTxt: { fontSize: 13, fontWeight: '500', color: C.gray700 },
   filterTxtActive: { color: C.white, fontWeight: '600' },
+  errorTxt: { color: '#DC2626', textAlign: 'center', fontSize: 13, paddingVertical: 16 },
   swapCard: { backgroundColor: C.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.gray100, gap: 12 },
   swapTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   swapUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -198,11 +297,6 @@ const s = StyleSheet.create({
   swapSkillName: { fontSize: 14, fontWeight: '600', color: C.gray900 },
   swapArrow: { paddingHorizontal: 8 },
   swapArrowTxt: { fontSize: 20, color: C.violet600 },
-  compatRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  compatTxt: { fontSize: 12, color: C.gray500 },
-  compatVal: { fontSize: 12, fontWeight: '700', color: C.violet600 },
-  compatBar: { height: 6, backgroundColor: C.gray100, borderRadius: 3, overflow: 'hidden' },
-  compatFill: { height: 6, backgroundColor: C.violet600, borderRadius: 3 },
   swapActions: { flexDirection: 'row', gap: 8 },
   acceptBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.violet600, paddingVertical: 10, borderRadius: 10 },
   acceptTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
@@ -227,6 +321,7 @@ const s = StyleSheet.create({
   ratingCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.gray100, alignItems: 'center' },
   ratingCancelTxt: { fontWeight: '600', color: C.gray700 },
   ratingSubmit: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.violet600, alignItems: 'center' },
+  ratingDisabled: { opacity: 0.5 },
   ratingSubmitTxt: { fontWeight: '600', color: C.white },
   verifySheet: { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
   verifyHeader: { backgroundColor: C.violet600, padding: 24, alignItems: 'center', gap: 8 },

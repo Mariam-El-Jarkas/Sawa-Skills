@@ -22,7 +22,17 @@ public class SwapRequest {
 
     private String description;
 
+    private String offeredSkill;
+
+    private String wantedSkill;
+
+    private String preferredTime;
+
+    private String note;
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 
     @ManyToOne
     @JoinColumn(name="requester_id")

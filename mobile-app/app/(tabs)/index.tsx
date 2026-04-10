@@ -1,34 +1,63 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, MapPin, TrendingUp, Heart, Sparkles, Users, Calendar, Award } from 'lucide-react-native';
+import { Search, MapPin, TrendingUp, Heart, Sparkles, Users, Calendar, Award, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { useHomeData } from '../../hooks/useHomeData';
 import { C, G } from '../../components/theme';
 
-const featuredSkills = [
-  { id: 1, title: 'Cooking', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400', users: 234 },
-  { id: 2, title: 'Music', image: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400', users: 189 },
-  { id: 3, title: 'Languages', image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=400', users: 456 },
-];
-const trendingSkills = [
-  { name: 'Photography', trend: '+24%', icon: '📸' },
-  { name: 'Web Design', trend: '+18%', icon: '🎨' },
-  { name: 'Arabic', trend: '+15%', icon: '🗣️' },
-];
-const upcomingEvents = [
-  { id: 1, title: 'Cooking Masterclass', date: 'Mar 5, 2026', attendees: 24, category: 'Cooking' },
-  { id: 2, title: 'Language Exchange Meetup', date: 'Mar 8, 2026', attendees: 45, category: 'Languages' },
-];
+const FEATURED_EMOJIS: Record<string, string> = {
+  Cooking: '🍳', Music: '🎵', Languages: '🗣️', Tech: '💻', Art: '🎨', Sports: '⚽', Business: '💼', Design: '🖌️'
+};
+const FEATURED_COLORS: Record<string, string> = {
+  Cooking: '#FEF3C7', Music: '#EDE9FE', Languages: '#DCFCE7', Tech: '#DBEAFE', Art: '#FCE7F3', Sports: '#E0F2FE', Business: '#F3E8FF', Design: '#FFEDD5'
+};
+
+const TREND_ICONS: Record<string, string> = {
+  Photography: '📸',
+  'Web Design': '🎨',
+  Arabic: '🗣️',
+  Cooking: '🍳',
+  Music: '🎵',
+  Tech: '💻',
+};
+
+
+import { skillsService } from '../../services/skillsService';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isLoggedIn, user, setShowLoginPrompt } = useAuth();
-  const [joinedEvents, setJoinedEvents] = useState<number[]>([]);
+  const { stats, trending, isLoading, refresh } = useHomeData();
+  const [categories, setCategories] = useState<string[]>([]);
   const [location] = useState('Beirut');
 
+  useEffect(() => {
+    skillsService.getCategories().then(setCategories).catch(console.error);
+  }, []);
+
+  // ── Derived stat cards ────────────────────────────────────────────────────
+  const statCards = isLoggedIn && stats?.isAuthenticated
+    ? [
+        { val: String(stats.swapCount ?? 0), lbl: 'Swaps', IconComp: Users },
+        { val: String(stats.connectionCount ?? 0), lbl: 'Connects', IconComp: Heart },
+        { val: String(stats.avgRating ?? '0.0'), lbl: 'Rating', IconComp: Award },
+      ]
+    : [
+        { val: stats ? `${stats.totalSkills ?? 500}+` : '500+', lbl: 'Skills', IconComp: Sparkles },
+        { val: stats ? `${stats.totalMembers ? Math.floor(stats.totalMembers / 1000) + 'k+' : '2k+'}` : '2k+', lbl: 'Members', IconComp: Users },
+        { val: stats ? `${stats.totalCities ?? 12}+` : '12+', lbl: 'Cities', IconComp: MapPin },
+      ];
+
   return (
-    <ScrollView style={s.screen} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.screen}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={isLoading} onRefresh={refresh} colors={[C.violet600]} tintColor={C.violet600} />
+      }
+    >
       {/* Hero */}
       <LinearGradient colors={['#6D28D9', '#8B5CF6', '#A78BFA']} style={s.hero}>
         <View style={s.locRow}>
@@ -53,25 +82,31 @@ export default function HomeScreen() {
         </View>
         <View style={s.searchWrap}>
           <Search size={20} color={C.gray400} style={s.searchIcon} />
-          <TextInput style={s.searchInput} placeholder="Search skills, people, categories..." placeholderTextColor={C.gray400} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search skills, people, categories..."
+            placeholderTextColor={C.gray400}
+            onFocus={() => router.push('/skills')}
+          />
         </View>
       </LinearGradient>
 
       <View style={s.body}>
         {/* Stats */}
         <View style={s.statsRow}>
-          {(isLoggedIn
-            ? [{ val: '24', lbl: 'Swaps', IconComp: Users }, { val: '12', lbl: 'Connects', IconComp: Heart }, { val: '4.8', lbl: 'Rating', IconComp: Award }]
-            : [{ val: '500+', lbl: 'Skills', IconComp: Sparkles }, { val: '2k+', lbl: 'Members', IconComp: Users }, { val: '12+', lbl: 'Cities', IconComp: MapPin }]
-          ).map(({ val, lbl, IconComp }) => (
-            <View key={lbl} style={s.statCard}>
-              <LinearGradient colors={G.violet} style={s.statIcon}>
-                <IconComp size={16} color="#fff" />
-              </LinearGradient>
-              <Text style={s.statVal}>{val}</Text>
-              <Text style={s.statLbl}>{lbl}</Text>
-            </View>
-          ))}
+          {isLoading && !stats
+            ? [1, 2, 3].map(i => (
+                <View key={i} style={[s.statCard, s.statCardSkeleton]} />
+              ))
+            : statCards.map(({ val, lbl, IconComp }) => (
+                <View key={lbl} style={s.statCard}>
+                  <LinearGradient colors={G.violet} style={s.statIcon}>
+                    <IconComp size={16} color="#fff" />
+                  </LinearGradient>
+                  <Text style={s.statVal}>{val}</Text>
+                  <Text style={s.statLbl}>{lbl}</Text>
+                </View>
+              ))}
         </View>
 
         {/* Quick Actions */}
@@ -96,69 +131,47 @@ export default function HomeScreen() {
             <TrendingUp size={20} color={C.violet600} />
             <Text style={s.sectionTitle}>Trending This Week</Text>
           </View>
-          {trendingSkills.map((sk, i) => (
-            <View key={i} style={s.trendRow}>
-              <Text style={s.trendIcon}>{sk.icon}</Text>
-              <Text style={s.trendName}>{sk.name}</Text>
-              <View style={s.trendBadge}><Text style={s.trendPct}>{sk.trend}</Text></View>
-            </View>
-          ))}
+          {isLoading && trending.length === 0
+            ? [1, 2, 3].map(i => <View key={i} style={[s.trendRow, s.skeleton]} />)
+            : trending.map((sk, i) => (
+                <View key={i} style={s.trendRow}>
+                  <Text style={s.trendIcon}>{TREND_ICONS[sk.name] ?? '⭐'}</Text>
+                  <Text style={s.trendName}>{sk.name}</Text>
+                  <View style={s.trendBadge}>
+                    <Text style={s.trendPct}>{sk.swapCount} swaps</Text>
+                  </View>
+                </View>
+              ))}
         </View>
 
         {/* Featured Categories */}
         <View style={s.section}>
           <View style={s.sectionHdr}>
             <Text style={s.sectionTitle}>Featured Categories</Text>
-            <TouchableOpacity onPress={() => router.push('/skills')}><Text style={s.seeAll}>See all →</Text></TouchableOpacity>
+            <TouchableOpacity style={s.seeAllBtn} onPress={() => router.push('/skills')}>
+              <Text style={s.seeAllTxt}>See all</Text>
+              <ChevronRight size={14} color={C.violet600} style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
           </View>
-          <View style={s.featRow}>
-            {featuredSkills.map(sk => (
-              <View key={sk.id} style={s.featCard}>
-                <Image source={{ uri: sk.image }} style={s.featImg} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {categories.map((cat, idx) => (
+              <TouchableOpacity
+                key={cat}
+                style={s.featCard}
+                onPress={() => router.push('/skills')}
+              >
+                <View style={[s.featImg, { backgroundColor: FEATURED_COLORS[cat] || '#F3F4F6' }]}>
+                  <Text style={s.featEmoji}>{FEATURED_EMOJIS[cat] || '✨'}</Text>
+                </View>
                 <View style={s.featInfo}>
-                  <Text style={s.featTitle}>{sk.title}</Text>
-                  <Text style={s.featUsers}>{sk.users} users</Text>
+                  <Text style={s.featTitle}>{cat}</Text>
+                  <Text style={s.featUsers}>Explore</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
-
         {/* Events */}
-        <View style={[s.section, { marginBottom: 32 }]}>
-          <View style={s.sectionHdr}>
-            <Calendar size={20} color={C.violet600} />
-            <Text style={s.sectionTitle}>Upcoming Events</Text>
-          </View>
-          {upcomingEvents.map(ev => (
-            <View key={ev.id} style={s.evCard}>
-              <View style={s.evTop}>
-                <View>
-                  <Text style={s.evTitle}>{ev.title}</Text>
-                  <Text style={s.evDate}>{ev.date}</Text>
-                </View>
-                <View style={s.evBadge}><Text style={s.evBadgeTxt}>{ev.category}</Text></View>
-              </View>
-              <View style={s.evBot}>
-                <View style={s.evAttRow}>
-                  <Users size={14} color={C.gray500} />
-                  <Text style={s.evAtt}>{ev.attendees} attending</Text>
-                </View>
-                <TouchableOpacity
-                  style={[s.evBtn, joinedEvents.includes(ev.id) && s.evBtnJoined]}
-                  onPress={() => {
-                    if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-                    if (!joinedEvents.includes(ev.id)) setJoinedEvents([...joinedEvents, ev.id]);
-                  }}
-                >
-                  <Text style={[s.evBtnTxt, joinedEvents.includes(ev.id) && s.evBtnTxtJoined]}>
-                    {joinedEvents.includes(ev.id) ? 'Joined ✓' : 'Join Event'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
       </View>
     </ScrollView>
   );
@@ -179,6 +192,7 @@ const s = StyleSheet.create({
   body: { padding: 16, gap: 20 },
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1, backgroundColor: C.white, borderRadius: 16, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: C.gray100 },
+  statCardSkeleton: { height: 90, backgroundColor: C.gray100 },
   statIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   statVal: { fontSize: 22, fontWeight: '700', color: C.violet600 },
   statLbl: { fontSize: 11, color: C.gray500 },
@@ -191,18 +205,14 @@ const s = StyleSheet.create({
   section: { gap: 12 },
   sectionHdr: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: C.gray900, flex: 1 },
-  seeAll: { fontSize: 14, color: C.violet600, fontWeight: '600' },
+  seeAllBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.violet50, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  seeAllTxt: { fontSize: 13, color: C.violet600, fontWeight: '600' },
   trendRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: C.gray100 },
   trendIcon: { fontSize: 20, marginRight: 12 },
   trendName: { flex: 1, fontSize: 15, fontWeight: '500', color: C.gray800 },
   trendBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   trendPct: { color: '#16A34A', fontWeight: '600', fontSize: 13 },
-  featRow: { flexDirection: 'row', gap: 10 },
-  featCard: { flex: 1, backgroundColor: C.white, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.gray100 },
-  featImg: { width: '100%', height: 80 },
-  featInfo: { padding: 8 },
-  featTitle: { fontSize: 13, fontWeight: '600', marginBottom: 2 },
-  featUsers: { fontSize: 11, color: C.gray400 },
+  skeleton: { height: 48, backgroundColor: C.gray100 },
   evCard: { backgroundColor: C.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.gray100 },
   evTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   evTitle: { fontSize: 15, fontWeight: '600', color: C.gray900 },
@@ -216,4 +226,10 @@ const s = StyleSheet.create({
   evBtnJoined: { backgroundColor: C.violet100 },
   evBtnTxt: { color: C.white, fontSize: 12, fontWeight: '600' },
   evBtnTxtJoined: { color: C.violet600 },
+  featCard: { width: 110, backgroundColor: C.white, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.gray100, marginRight: 10 },
+  featImg: { width: '100%', height: 72, alignItems: 'center', justifyContent: 'center' },
+  featEmoji: { fontSize: 32 },
+  featInfo: { padding: 8 },
+  featTitle: { fontSize: 13, fontWeight: '600', color: C.gray900, marginBottom: 2 },
+  featUsers: { fontSize: 11, color: C.gray400 },
 });

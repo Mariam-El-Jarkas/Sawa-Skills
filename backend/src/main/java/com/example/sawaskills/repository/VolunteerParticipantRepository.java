@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface VolunteerParticipantRepository extends JpaRepository<VolunteerParticipant, Long> {
+    long countBySessionId(Long sessionId);
+    boolean existsBySessionIdAndParticipantId(Long sessionId, Long participantId);
 }

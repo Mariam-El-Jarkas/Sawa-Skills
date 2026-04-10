@@ -37,6 +37,14 @@ public class SecurityConfig {
                                 "/uploads/**",
                                 "/error"
                         ).permitAll()
+                        // Public read-only endpoints
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/skills",
+                                "/api/skills/categories",
+                                "/api/home/stats",
+                                "/api/home/trending",
+                                "/api/volunteer/sessions"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 );
 

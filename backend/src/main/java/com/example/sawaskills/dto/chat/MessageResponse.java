@@ -1,0 +1,17 @@
+package com.example.sawaskills.dto.chat;
+
+import lombok.*;
+
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class MessageResponse {
+    private Long id;
+    private String content;
+    private String sentAt;
+    private Boolean isMe;
+    private Long senderId;
+    private String senderName;
+}

@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name="conversations")
@@ -19,5 +21,18 @@ public class Conversation {
     private Long id;
 
     private LocalDateTime createdAt;
+    
+    private String name;
+    
+    private boolean isGroup;
+
+    @ManyToMany
+    @JoinTable(
+        name = "conversation_participants",
+        joinColumns = @JoinColumn(name = "conversation_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    @Builder.Default
+    private Set<User> participants = new HashSet<>();
 
 }

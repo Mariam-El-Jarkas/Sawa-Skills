@@ -27,6 +27,13 @@ public class ProfileController {
         return ResponseEntity.ok(profileService.getMyProfile(userDetails.getUsername()));
     }
 
+    // ── GET /api/profile/{id} ─────────────────────────────────────────────────
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ProfileResponse> getPublicProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(profileService.getPublicProfile(id));
+    }
+
     // ── PATCH /api/profile/bio ────────────────────────────────────────────────
 
     @PatchMapping("/bio")

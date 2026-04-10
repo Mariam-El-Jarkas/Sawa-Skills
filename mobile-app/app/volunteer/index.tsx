@@ -1,38 +1,73 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet, Alert, DeviceEventEmitter } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Heart, Award, Calendar, MapPin, Users, X, CheckCircle, ArrowLeft, Plus } from 'lucide-react-native';
+import { Heart, Calendar, Users, X, CheckCircle, ArrowLeft, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
 import { C, G } from '../../components/theme';
 
-const opportunities = [
-  { id: 1, title: 'Free Cooking Classes for Children', organizer: 'Sarah M.', location: 'Beirut', date: '2026-03-10', participants: 8, maxParticipants: 12, image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400' },
-  { id: 2, title: 'Community Guitar Lessons', organizer: 'John D.', location: 'Tripoli', date: '2026-03-15', participants: 5, maxParticipants: 10, image: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=400' },
-];
-
-const mySessions = [
-  { id: 1, title: 'Web Development Basics', date: '2026-03-08', participants: 15, status: 'upcoming' },
-];
+import { volunteerService, VolunteerSession } from '../../services/volunteerService';
+import { Toggle } from '../../components/Toggle';
 
 export default function VolunteerScreen() {
   const router = useRouter();
-  const { isLoggedIn, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
   const { profile, applyForVolunteer } = useProfile();
-  const [joinedSessions, setJoinedSessions] = useState<number[]>([]);
+  
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [applicationSubmitted, setApplicationSubmitted] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [sessionSubmitted, setSessionSubmitted] = useState(false);
+  
   const [appData, setAppData] = useState({ why: '', experience: '', skills: '' });
-  const [sessionData, setSessionData] = useState({ name: '', description: '', skills: '', date: '', time: '', location: '' });
+  const [sessionData, setSessionData] = useState({ 
+    name: '', 
+    description: '', 
+    skills: '', 
+    date: '', 
+    time: '', 
+    location: '',
+    createGroupChat: true 
+  });
 
-  const handleJoin = (id: number, title: string) => {
-    if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-    if (!joinedSessions.includes(id)) {
-      setJoinedSessions([...joinedSessions, id]);
-      router.push('/chat');
+  const [opportunities, setOpportunities] = useState<VolunteerSession[]>([]);
+  const [mySessions, setMySessions] = useState<VolunteerSession[]>([]);
+
+  const loadData = () => {
+    volunteerService.getAllSessions().then(setOpportunities).catch(console.error);
+    if (isLoggedIn && token) {
+      volunteerService.getMySessions(token).then(setMySessions).catch(console.error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [isLoggedIn, token]);
+
+  const handleJoin = async (session: VolunteerSession) => {
+    if (!isLoggedIn || !token) { setShowLoginPrompt(true); return; }
+    
+    try {
+      await volunteerService.joinSession(session.id, token);
+      
+      // Update local state to show "Joined" immediately
+      setOpportunities(prev => prev.map(o => 
+        o.id === session.id ? { ...o, isJoined: true, participants: o.participants + 1 } : o
+      ));
+      
+      Alert.alert('Success', 'You have joined the session!', [
+        { 
+          text: session.groupChatId ? 'Go to Chat' : 'OK', 
+          onPress: () => {
+            if (session.groupChatId) {
+              router.push({ pathname: '/chat', params: { openId: session.groupChatId } });
+            }
+          }
+        }
+      ]);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to join session');
     }
   };
 
@@ -51,10 +86,23 @@ export default function VolunteerScreen() {
     }
   };
 
-  const handleSessionSubmit = () => {
-    setSessionSubmitted(true);
-    setShowSessionForm(false);
-    setTimeout(() => setSessionSubmitted(false), 3000);
+  const handleSessionSubmit = async () => {
+    if (!token) { setShowLoginPrompt(true); return; }
+    if (!sessionData.name || !sessionData.date) {
+      Alert.alert('Error', 'Name and Date are required');
+      return;
+    }
+    try {
+      const created = await volunteerService.createSession(sessionData, token);
+      setMySessions(prev => [created, ...prev]);
+      setOpportunities(prev => [created, ...prev]);
+      setSessionSubmitted(true);
+      setShowSessionForm(false);
+      setSessionData({ name: '', description: '', skills: '', date: '', time: '', location: '', createGroupChat: true });
+      setTimeout(() => setSessionSubmitted(false), 3000);
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to create session');
+    }
   };
 
   return (
@@ -67,7 +115,6 @@ export default function VolunteerScreen() {
       </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Banner */}
         <LinearGradient colors={['#6D28D9', '#8B5CF6']} style={s.heroBanner}>
           <View style={s.heroContent}>
             <Heart size={36} color={C.white} />
@@ -89,49 +136,34 @@ export default function VolunteerScreen() {
         </LinearGradient>
 
         <View style={s.body}>
-          {/* Stats Row */}
-          <View style={s.statsRow}>
-            {[{ val: '120+', lbl: 'Volunteers', Icon: Users }, { val: '45', lbl: 'Sessions', Icon: Calendar }, { val: '500+', lbl: 'Helped', Icon: Heart }].map(({ val, lbl, Icon }) => (
-              <View key={lbl} style={s.statCard}>
-                <Icon size={20} color={C.violet600} />
-                <Text style={s.statVal}>{val}</Text>
-                <Text style={s.statLbl}>{lbl}</Text>
-              </View>
-            ))}
-          </View>
-
           {/* Opportunities */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Volunteer Opportunities</Text>
-            {opportunities.map(opp => (
-              <View key={opp.id} style={s.oppCard}>
-                <Image source={{ uri: opp.image }} style={s.oppImg} />
-                <View style={s.oppBody}>
-                  <Text style={s.oppTitle}>{opp.title}</Text>
-                  <View style={s.oppMeta}>
-                    <View style={s.oppMetaItem}><MapPin size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{opp.location}</Text></View>
-                    <View style={s.oppMetaItem}><Calendar size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{opp.date}</Text></View>
-                  </View>
-                  <View style={s.oppFooter}>
-                    <View style={s.progressWrap}>
-                      <View style={s.progressBar}>
-                        <View style={[s.progressFill, { width: `${(opp.participants / opp.maxParticipants) * 100}%` as any }]} />
-                      </View>
-                      <Text style={s.progressTxt}>{opp.participants}/{opp.maxParticipants} spots</Text>
+          {opportunities.length > 0 && (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Volunteer Opportunities</Text>
+              {opportunities.map(opp => (
+                <View key={opp.id} style={s.oppCard}>
+                  <View style={s.oppBody}>
+                    <Text style={s.oppTitle}>{opp.title}</Text>
+                    <Text style={s.oppDesc}>{opp.description}</Text>
+                    <View style={s.oppMeta}>
+                      <View style={s.oppMetaItem}><Users size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>By {opp.organizer}</Text></View>
+                      <View style={s.oppMetaItem}><Calendar size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{opp.date}</Text></View>
                     </View>
-                    <TouchableOpacity
-                      style={[s.joinBtn, joinedSessions.includes(opp.id) ? s.joinBtnDone : null]}
-                      onPress={() => handleJoin(opp.id, opp.title)}
-                    >
-                      <Text style={[s.joinBtnTxt, joinedSessions.includes(opp.id) ? s.joinBtnTxtDone : null]}>
-                        {joinedSessions.includes(opp.id) ? 'Joined ✓' : 'Join'}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={s.oppFooter}>
+                      <TouchableOpacity
+                        style={[s.joinBtn, opp.isJoined ? s.joinBtnDone : null]}
+                        onPress={() => handleJoin(opp)}
+                      >
+                        <Text style={[s.joinBtnTxt, opp.isJoined ? s.joinBtnTxtDone : null]}>
+                          {opp.isJoined ? 'Joined ✓' : 'Join'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           {/* My Sessions */}
           {isLoggedIn && (
@@ -232,7 +264,7 @@ export default function VolunteerScreen() {
                     <Text style={s.fieldLabel}>{label}</Text>
                     <TextInput
                       style={[s.fieldInput, key === 'description' ? s.fieldTextarea : null]}
-                      value={sessionData[key as keyof typeof sessionData]}
+                      value={sessionData[key as keyof typeof sessionData] as string}
                       onChangeText={v => setSessionData(p => ({ ...p, [key]: v }))}
                       placeholder={placeholder}
                       placeholderTextColor={C.gray400}
@@ -241,6 +273,18 @@ export default function VolunteerScreen() {
                     />
                   </View>
                 ))}
+
+                <View style={s.toggleField}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.toggleLabel}>Create group chat for this session</Text>
+                    <Text style={s.toggleSub}>Participants will be added automatically</Text>
+                  </View>
+                  <Toggle 
+                    checked={sessionData.createGroupChat} 
+                    onChange={v => setSessionData(p => ({ ...p, createGroupChat: v }))} 
+                  />
+                </View>
+
                 <View style={s.formBtns}>
                   <TouchableOpacity style={s.cancelBtn} onPress={() => setShowSessionForm(false)}>
                     <Text style={s.cancelBtnTxt}>Cancel</Text>
@@ -281,27 +325,19 @@ const s = StyleSheet.create({
   applyBtn: { backgroundColor: C.white, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
   applyBtnTxt: { color: C.violet600, fontWeight: '700', fontSize: 15 },
   body: { paddingHorizontal: 16, gap: 20, paddingBottom: 20 },
-  statsRow: { flexDirection: 'row', gap: 10 },
-  statCard: { flex: 1, backgroundColor: C.white, borderRadius: 14, padding: 12, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: C.gray100 },
-  statVal: { fontSize: 20, fontWeight: '700', color: C.violet600 },
-  statLbl: { fontSize: 11, color: C.gray500 },
   section: { gap: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: C.gray900 },
   sectionHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   createSessionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.violet600, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   createSessionTxt: { color: C.white, fontWeight: '700', fontSize: 13 },
   oppCard: { backgroundColor: C.white, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.gray100 },
-  oppImg: { width: '100%', height: 140 },
   oppBody: { padding: 14, gap: 8 },
   oppTitle: { fontSize: 16, fontWeight: '700', color: C.gray900 },
+  oppDesc: { fontSize: 13, color: C.gray600, lineHeight: 18 },
   oppMeta: { flexDirection: 'row', gap: 14 },
   oppMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   oppMetaTxt: { fontSize: 12, color: C.gray500 },
   oppFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressWrap: { flex: 1, gap: 4, marginRight: 12 },
-  progressBar: { height: 6, backgroundColor: C.gray100, borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: 6, backgroundColor: C.violet600, borderRadius: 3 },
-  progressTxt: { fontSize: 11, color: C.gray400 },
   joinBtn: { backgroundColor: C.violet600, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
   joinBtnDone: { backgroundColor: C.violet100 },
   joinBtnTxt: { color: C.white, fontWeight: '700', fontSize: 13 },
@@ -318,8 +354,11 @@ const s = StyleSheet.create({
   formTitle: { fontSize: 18, fontWeight: '700' },
   formBody: { padding: 20, gap: 14 },
   fieldLabel: { fontSize: 10, fontWeight: '700', color: C.gray400, letterSpacing: 1, marginBottom: 6 },
-  fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, color: C.gray900, borderWidth: 1, borderColor: C.gray100 },
+  fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, color: C.gray900, borderWidth: 1, borderColor: C.gray200 },
   fieldTextarea: { minHeight: 80, textAlignVertical: 'top' },
+  toggleField: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.violet50, padding: 16, borderRadius: 14, marginTop: 8, borderWidth: 1, borderColor: C.violet100 },
+  toggleLabel: { fontSize: 14, fontWeight: '700', color: C.violet600 },
+  toggleSub: { fontSize: 11, color: C.violet400, marginTop: 2 },
   formBtns: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 8 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.gray100, alignItems: 'center' },
   cancelBtnTxt: { fontWeight: '600', color: C.gray700 },
