@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 'react-native';
 import { X, CheckCircle } from 'lucide-react-native';
 import { C } from './theme';
@@ -7,7 +7,7 @@ interface Props {
   isOpen: boolean; onClose: () => void;
   targetUser: string; targetSkill: string;
   userSkills: { id: number; name: string }[];
-  onConfirm: (data: any) => void;
+  onConfirm: (data: any) => Promise<void>;
 }
 
 export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, userSkills, onConfirm }: Props) {
@@ -15,7 +15,20 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
   const [note, setNote] = useState('');
   const [time, setTime] = useState('');
   const [success, setSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ skill?: string; note?: string; time?: string }>({});
+
+  // Reset form state every time the modal opens for a fresh start
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedId(userSkills[0]?.id || '');
+      setNote('');
+      setTime('');
+      setSuccess(false);
+      setIsSubmitting(false);
+      setErrors({});
+    }
+  }, [isOpen]);
 
   const validate = () => {
     const errs: typeof errors = {};
@@ -26,13 +39,31 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
     return Object.keys(errs).length === 0;
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!validate()) return;
-    setSuccess(true);
-    setTimeout(() => {
-      onConfirm({ targetUser, targetSkill, offeredSkill: userSkills.find(s => s.id === selectedId)?.name, note, time });
-      onClose(); setSuccess(false); setNote(''); setTime(''); setErrors({});
-    }, 2000);
+    setIsSubmitting(true);
+    setErrors({});
+    try {
+      await onConfirm({
+        targetUser,
+        targetSkill,
+        offeredSkill: userSkills.find(s => s.id === selectedId)?.name,
+        note,
+        time
+      });
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+        setSuccess(false);
+        setNote('');
+        setTime('');
+        setIsSubmitting(false);
+      }, 2000);
+    } catch (e: any) {
+      setErrors({ note: e.message || 'Failed to send request' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,11 +89,18 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
               </View>
               <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
                 <Text style={s.label}>I OFFER IN RETURN</Text>
-                {userSkills.map(skill => (
-                  <TouchableOpacity key={skill.id} style={[s.opt, selectedId === skill.id && s.optActive]} onPress={() => { setSelectedId(skill.id); setErrors(e => ({ ...e, skill: undefined })); }}>
-                    <Text style={[s.optTxt, selectedId === skill.id && s.optTxtActive]}>{skill.name}</Text>
-                  </TouchableOpacity>
-                ))}
+                {userSkills.length === 0 ? (
+                  <View style={s.noSkillsBox}>
+                    <Text style={s.noSkillsTxt}>You haven't added any offered skills yet.</Text>
+                    <Text style={s.noSkillsHint}>Go to Skills → My Exchange → Add Offered Skill first.</Text>
+                  </View>
+                ) : (
+                  userSkills.map(skill => (
+                    <TouchableOpacity key={skill.id} style={[s.opt, selectedId === skill.id && s.optActive]} onPress={() => { setSelectedId(skill.id); setErrors(e => ({ ...e, skill: undefined })); }}>
+                      <Text style={[s.optTxt, selectedId === skill.id && s.optTxtActive]}>{skill.name}</Text>
+                    </TouchableOpacity>
+                  ))
+                )}
                 {errors.skill && <Text style={s.errorTxt}>{errors.skill}</Text>}
 
                 <Text style={[s.label, { marginTop: 16 }]}>PREFERRED TIME</Text>
@@ -92,8 +130,12 @@ export function SwapRequestModal({ isOpen, onClose, targetUser, targetSkill, use
               </ScrollView>
               <View style={s.footer}>
                 <TouchableOpacity style={s.cancelBtn} onPress={onClose}><Text style={s.cancelTxt}>Cancel</Text></TouchableOpacity>
-                <TouchableOpacity style={[s.sendBtn, !selectedId && s.disabled]} onPress={submit} disabled={!selectedId}>
-                  <Text style={s.sendTxt}>Send Request</Text>
+                <TouchableOpacity 
+                   style={[s.sendBtn, (!selectedId || isSubmitting) && s.disabled]} 
+                   onPress={submit} 
+                   disabled={!selectedId || isSubmitting}
+                >
+                  <Text style={s.sendTxt}>{isSubmitting ? 'Sending...' : 'Send Request'}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -127,6 +169,9 @@ const s = StyleSheet.create({
   errorTxt: { fontSize: 12, color: '#DC2626', marginBottom: 8, marginLeft: 4 },
   charCount: { fontSize: 11, color: C.gray400, textAlign: 'right', marginBottom: 8 },
   charCountWarn: { color: '#D97706' },
+  noSkillsBox: { backgroundColor: C.amber100, borderRadius: 12, padding: 14, marginBottom: 8 },
+  noSkillsTxt: { fontSize: 13, fontWeight: '600', color: C.amber700 },
+  noSkillsHint: { fontSize: 12, color: C.amber700, marginTop: 4 },
   footer: { flexDirection: 'row', gap: 12, padding: 24, borderTopWidth: 1, borderTopColor: C.gray100 },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: C.gray100, alignItems: 'center' },
   cancelTxt: { fontWeight: '600', color: C.gray700 },

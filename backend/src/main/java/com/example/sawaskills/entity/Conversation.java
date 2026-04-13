@@ -24,7 +24,6 @@ public class Conversation {
     
     private String name;
     
-    private boolean isGroup;
 
     @ManyToMany
     @JoinTable(

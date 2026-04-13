@@ -27,7 +27,10 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) {
         seedAdmin();
         List<SkillCategory> categories = seedCategories();
-        seedSkills(categories);
+        List<Skill> skills = seedSkills(categories);
+        List<User> demoUsers = seedDemoUsers();
+        seedExchangeListings(demoUsers, skills);
+        seedInitialSwaps(demoUsers);
     }
 
     // ── Admin user ────────────────────────────────────────────────────────────
@@ -164,8 +167,56 @@ public class DataInitializer implements CommandLineRunner {
                 .location((String) d[3])
                 .availability((String) d[4])
                 .createdAt(LocalDateTime.now())
+                .active(true)
                 .build()));
 
         System.out.println("[Sawa] Seeded " + listingData.size() + " exchange listings.");
+    }
+
+    private final SwapRequestRepository swapRequestRepository;
+
+    private void seedInitialSwaps(List<User> users) {
+        if (swapRequestRepository.count() > 0) return;
+        if (users.size() < 4) return;
+
+        User sarah = users.get(0); // sarah@demo.com
+        User john = users.get(1);  // john@demo.com
+        User maya = users.get(2);  // maya@demo.com
+        User david = users.get(3); // david@demo.com
+
+        // Sarah requested Guitar Lessons from John
+        swapRequestRepository.save(SwapRequest.builder()
+                .requester(sarah).receiver(john)
+                .offeredSkill("Cooking").wantedSkill("Guitar Lessons")
+                .status("PENDING")
+                .createdAt(LocalDateTime.now().minusHours(2))
+                .build());
+
+        // Maya requested Cooking from Sarah
+        swapRequestRepository.save(SwapRequest.builder()
+                .requester(maya).receiver(sarah)
+                .offeredSkill("Arabic Tutoring").wantedSkill("Cooking")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build());
+
+        // Sarah and David completed a swap
+        swapRequestRepository.save(SwapRequest.builder()
+                .requester(sarah).receiver(david)
+                .offeredSkill("Cooking").wantedSkill("Web Development")
+                .status("COMPLETED")
+                .createdAt(LocalDateTime.now().minusDays(5))
+                .build());
+
+        // Test Case: Sarah is the receiver (to see Accept/Reject buttons)
+        User nour = users.stream().filter(u -> u.getEmail().equals("nour@demo.com")).findFirst().orElse(users.get(2));
+        swapRequestRepository.save(SwapRequest.builder()
+                .requester(nour).receiver(sarah)
+                .offeredSkill("Graphic Design").wantedSkill("Cooking")
+                .status("PENDING")
+                .createdAt(LocalDateTime.now().minusMinutes(30))
+                .build());
+
+        System.out.println("[Sawa] Seeded initial swaps.");
     }
 }

@@ -6,7 +6,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name="swap_requests")
+@Table(name="swap_requests", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_swap_requester_listing", columnNames = {"requester_id", "listing_id"})
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,10 +31,18 @@ public class SwapRequest {
     private String preferredTime;
 
     private String note;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "listing_id")
+    private ExchangeListing listing;
 
     private LocalDateTime createdAt;
-
     private LocalDateTime updatedAt;
+
+    @Builder.Default
+    private Boolean requesterFinished = false;
+    @Builder.Default
+    private Boolean receiverFinished = false;
 
     @ManyToOne
     @JoinColumn(name="requester_id")

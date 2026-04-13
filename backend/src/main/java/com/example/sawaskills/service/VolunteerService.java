@@ -62,7 +62,6 @@ public class VolunteerService {
         if (request.isCreateGroupChat()) {
             Conversation gc = Conversation.builder()
                     .name(request.getTitle())
-                    .isGroup(true)
                     .createdAt(LocalDateTime.now())
                     .participants(new HashSet<>(Collections.singletonList(user)))
                     .build();

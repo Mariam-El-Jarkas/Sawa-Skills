@@ -20,4 +20,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Optional<Double> findAvgRatingByReviewedUserId(@Param("userId") Long userId);
 
     boolean existsByReviewerIdAndReviewedUserId(Long reviewerId, Long reviewedUserId);
+
+    boolean existsByReviewerIdAndSwapId(Long reviewerId, Long swapId);
+
+    @Query("SELECT r.reviewedUser.id, AVG(r.rating) FROM Review r WHERE r.reviewedUser.id IN :userIds GROUP BY r.reviewedUser.id")
+    List<Object[]> findAvgRatingsByUserIds(@Param("userIds") List<Long> userIds);
 }

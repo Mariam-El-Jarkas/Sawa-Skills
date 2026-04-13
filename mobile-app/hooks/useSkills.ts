@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { skillsService, SkillListing, UserSkill, BrowseParams } from '../services/skillsService';
 import { useAuth } from '../contexts/AuthContext';
 
+const PAGE_SIZE = 20;
+
 interface SkillsState {
   listings: SkillListing[];
   categories: string[];
@@ -9,12 +11,15 @@ interface SkillsState {
   myOffered: UserSkill[];
   myWanted: UserSkill[];
   isLoading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
   isMyDataLoading: boolean;
   error: string | null;
 }
 
 interface SkillsActions {
   fetchListings: (params: BrowseParams) => void;
+  loadMoreListings: () => void;
   fetchMyData: () => Promise<void>;
   createListing: (data: { offeredSkill: string; wantedSkill: string; location?: string; availability?: string }) => Promise<void>;
   deleteListing: (id: number) => Promise<void>;
@@ -31,8 +36,12 @@ export function useSkills(): SkillsState & SkillsActions {
   const [myOffered, setMyOffered] = useState<UserSkill[]>([]);
   const [myWanted, setMyWanted] = useState<UserSkill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [isMyDataLoading, setIsMyDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const currentPageRef = useRef(0);
+  const currentParamsRef = useRef<BrowseParams>({});
 
   // Debounce ref for search
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,27 +51,42 @@ export function useSkills(): SkillsState & SkillsActions {
     skillsService.getCategories().then(setCategories).catch(() => {});
   }, []);
 
-  // ── Browse listings (debounced) ───────────────────────────────────────────
+  // ── Browse listings (debounced, resets to page 0) ─────────────────────────
   const fetchListings = useCallback((params: BrowseParams) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setIsLoading(true);
       setError(null);
+      currentPageRef.current = 0;
+      currentParamsRef.current = params;
       try {
-        const data = await skillsService.browseListings(params, token);
+        const data = await skillsService.browseListings({ ...params, page: 0, size: PAGE_SIZE }, token);
         setListings(data);
+        setHasMore(data.length === PAGE_SIZE);
       } catch (e: any) {
         setError(e.message ?? 'Failed to load skills');
       } finally {
         setIsLoading(false);
       }
-    }, 350);
+    }, 250);
   }, [token]);
 
-  // ── Load initial listings ─────────────────────────────────────────────────
-  useEffect(() => {
-    fetchListings({});
-  }, [fetchListings]);
+  // ── Load next page (append) ───────────────────────────────────────────────
+  const loadMoreListings = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    const nextPage = currentPageRef.current + 1;
+    setIsLoadingMore(true);
+    try {
+      const data = await skillsService.browseListings({ ...currentParamsRef.current, page: nextPage, size: PAGE_SIZE }, token);
+      setListings(prev => [...prev, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+      currentPageRef.current = nextPage;
+    } catch {
+      // silently fail on load-more — user can retry by scrolling again
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [token, isLoadingMore, hasMore]);
 
   // ── Cleanup debounce on unmount ───────────────────────────────────────────
   useEffect(() => {
@@ -94,26 +118,44 @@ export function useSkills(): SkillsState & SkillsActions {
   // ── Actions ───────────────────────────────────────────────────────────────
   const createListing = useCallback(async (data: { offeredSkill: string; wantedSkill: string; location?: string; availability?: string }) => {
     if (!token) throw new Error('Not logged in');
-    const created = await skillsService.createListing(data, token);
-    setMyListings(prev => [created, ...prev]);
+    try {
+      const created = await skillsService.createListing(data, token);
+      setMyListings(prev => [created, ...prev]);
+    } catch (e: any) {
+      throw e;
+    }
   }, [token]);
 
   const deleteListing = useCallback(async (id: number) => {
     if (!token) throw new Error('Not logged in');
-    await skillsService.deleteListing(id, token);
-    setMyListings(prev => prev.filter(l => l.id !== id));
+    try {
+      await skillsService.deleteListing(id, token);
+      setMyListings(prev => prev.filter(l => l.id !== id));
+      setListings(prev => prev.filter(l => l.id !== id));
+    } catch (e: any) {
+      // Re-throw so component can alert the user
+      throw e;
+    }
   }, [token]);
 
   const addOfferedSkill = useCallback(async (data: { skillName: string; description?: string; category?: string }) => {
     if (!token) throw new Error('Not logged in');
-    const skill = await skillsService.addOfferedSkill(data, token);
-    setMyOffered(prev => [...prev, skill]);
+    try {
+      const skill = await skillsService.addOfferedSkill(data, token);
+      setMyOffered(prev => [...prev, skill]);
+    } catch (e: any) {
+      throw e;
+    }
   }, [token]);
 
   const addWantedSkill = useCallback(async (data: { skillName: string; description?: string; category?: string }) => {
     if (!token) throw new Error('Not logged in');
-    const skill = await skillsService.addWantedSkill(data, token);
-    setMyWanted(prev => [...prev, skill]);
+    try {
+      const skill = await skillsService.addWantedSkill(data, token);
+      setMyWanted(prev => [...prev, skill]);
+    } catch (e: any) {
+      throw e;
+    }
   }, [token]);
 
   const toggleVisibility = useCallback(async (id: number) => {
@@ -126,8 +168,8 @@ export function useSkills(): SkillsState & SkillsActions {
 
   return {
     listings, categories, myListings, myOffered, myWanted,
-    isLoading, isMyDataLoading, error,
-    fetchListings, fetchMyData,
+    isLoading, isLoadingMore, hasMore, isMyDataLoading, error,
+    fetchListings, loadMoreListings, fetchMyData,
     createListing, deleteListing,
     addOfferedSkill, addWantedSkill, toggleVisibility,
   };

@@ -12,4 +12,5 @@ public class UserSkillResponse {
     private String skillName;
     private String category;
     private Boolean offering;
+    private boolean isPublic;
 }

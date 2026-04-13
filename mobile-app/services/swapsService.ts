@@ -14,6 +14,9 @@ export interface Swap {
   note: string | null;
   preferredTime: string | null;
   isRequester: boolean;
+  hasRated?: boolean;
+  isFinished?: boolean;
+  everyoneFinished?: boolean;
 }
 
 export interface CreateSwapData {
@@ -22,6 +25,7 @@ export interface CreateSwapData {
   wantedSkill: string;
   preferredTime?: string;
   note?: string;
+  listingId?: number;
 }
 
 export interface RatingData {
@@ -47,6 +51,10 @@ export const swapsService = {
 
   rejectSwap(id: number, token: string): Promise<Swap> {
     return apiPatch<Swap>(`/api/swaps/${id}/reject`, {}, token);
+  },
+
+  markFinished(id: number, token: string): Promise<Swap> {
+    return apiPatch<Swap>(`/api/swaps/${id}/finished`, {}, token);
   },
 
   rateSwap(id: number, data: RatingData, token: string): Promise<void> {

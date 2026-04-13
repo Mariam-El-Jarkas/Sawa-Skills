@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { BASE_URL, setOnUnauthorized } from '../services/api';
+import { apiGet, apiPost, setOnUnauthorized } from '../services/api';
 
 const TOKEN_KEY = 'auth_token';
 
@@ -75,11 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const stored = await loadToken();
         if (stored) {
-          // Validate token is still good by decoding expiry (JWT is base64)
-          const parts = stored.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            if (payload.exp * 1000 > Date.now()) {
+          // Decode payload for user info only — backend 401 handler clears expired tokens
+          try {
+            const parts = stored.split('.');
+            if (parts.length === 3) {
+              const payload = JSON.parse(atob(parts[1]));
               setToken(stored);
               setIsLoggedIn(true);
               setUser({
@@ -90,9 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 isAgeVerified: false,
                 isMinorVerified: false,
               });
-            } else {
-              await deleteToken(); // expired — clear it
             }
+          } catch {
+            await deleteToken();
           }
         }
       } catch {
@@ -119,87 +119,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const res = await fetch(`${BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => '');
-      throw new Error(msg || `Login failed (${res.status})`);
-    }
-    await applySession(await res.json());
+    const data = await apiPost<any>('/api/auth/login', { email, password });
+    await applySession(data);
     return true;
   };
 
   const signup = async (name: string, email: string, phone: string, password: string, birthDate: string): Promise<boolean> => {
-    const res = await fetch(`${BASE_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, password, dateOfBirth: birthDate }),
-    });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => '');
-      throw new Error(msg || `Server error ${res.status}`);
-    }
+    await apiPost('/api/auth/register', { name, email, phone, password, dateOfBirth: birthDate });
     return true;
   };
 
   const verifyOtp = async (email: string, otp: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${BASE_URL}/api/auth/verify-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-      return res.ok;
+      await apiPost('/api/auth/verify-email', { email, otp });
+      return true;
     } catch { return false; }
   };
 
   const resendOtp = async (email: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${BASE_URL}/api/auth/resend-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      return res.ok;
+      await apiPost('/api/auth/resend-otp', { email });
+      return true;
     } catch { return false; }
   };
 
   const forgotPassword = async (email: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      return res.ok;
+      await apiPost('/api/auth/forgot-password', { email });
+      return true;
     } catch { return false; }
   };
 
   const resetPassword = async (email: string, code: string, newPassword: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${BASE_URL}/api/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token: code, newPassword }),
-      });
-      return res.ok;
+      await apiPost('/api/auth/reset-password', { email, token: code, newPassword });
+      return true;
     } catch { return false; }
   };
 
   const loginWithSocial = async (provider: 'GOOGLE' | 'FACEBOOK' | 'GITHUB', accessToken: string, redirectUri?: string): Promise<boolean> => {
-    const res = await fetch(`${BASE_URL}/api/auth/social-login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, accessToken, redirectUri }),
-    });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => '');
-      throw new Error(msg || 'Social login failed');
-    }
-    await applySession(await res.json());
+    const data = await apiPost<any>('/api/auth/social-login', { provider, accessToken, redirectUri });
+    await applySession(data);
     return true;
   };
 
@@ -210,24 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyAge = async (data: any): Promise<boolean> => {
     try {
       if (!user || !token) return false;
-      const res = await fetch(`${BASE_URL}/api/verification/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...data, type: data.type || 'ADULT' }),
-      });
-      return res.ok;
+      await apiPost('/api/verification/submit', { ...data, type: data.type || 'ADULT' }, token);
+      return true;
     } catch { return false; }
   };
 
   const verifyMinor = async (parentEmail: string): Promise<boolean> => {
     try {
       if (!user || !token) return false;
-      const res = await fetch(`${BASE_URL}/api/verification/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ parentEmail, type: 'MINOR' }),
-      });
-      return res.ok;
+      await apiPost('/api/verification/submit', { parentEmail, type: 'MINOR' }, token);
+      return true;
     } catch { return false; }
   };
 

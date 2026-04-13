@@ -1,0 +1,163 @@
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Clock, CheckCircle, XCircle, MessageCircle, Eye } from 'lucide-react-native';
+import { C } from '../theme';
+
+interface SwapData {
+  id: number;
+  status: string;
+  date: string;
+  otherUserId: number;
+  otherUserName: string;
+  otherUserInitials: string;
+  theyOffer: string;
+  youOffer: string;
+  isRequester: boolean;
+  isFinished?: boolean;
+  everyoneFinished?: boolean;
+  hasRated?: boolean;
+}
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  pending:   { bg: C.amber100,   text: C.amber700 },
+  active:    { bg: C.violet100,  text: C.violet600 },
+  completed: { bg: C.violet100,  text: C.violet600 },
+  rejected:  { bg: C.gray100,    text: C.gray500 },
+};
+
+interface Props {
+  swap: SwapData;
+  onAccept?: (id: number) => void;
+  onReject?: (id: number) => void;
+  onFinish?: (id: number) => void;
+  onRate?: (id: number) => void;
+  onChat?: (otherUserId: number) => void;
+  onViewProfile?: (userId: number) => void;
+}
+
+export const SwapCard: React.FC<Props> = ({ 
+  swap, onAccept, onReject, onFinish, onRate, onChat, onViewProfile 
+}) => {
+  const sc = STATUS_COLORS[swap.status] ?? STATUS_COLORS.pending;
+
+  return (
+    <View style={s.swapCard}>
+      <View style={s.swapTop}>
+        <View style={s.swapUser}>
+          <View style={s.swapAvatar}><Text style={s.swapAvatarTxt}>{swap.otherUserInitials}</Text></View>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={s.swapUserName}>{swap.otherUserName}</Text>
+              {onViewProfile && (
+                <TouchableOpacity onPress={() => onViewProfile(swap.otherUserId)}>
+                  <Eye size={16} color={C.violet600} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={s.swapDate}>{swap.date}</Text>
+          </View>
+        </View>
+        <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
+          <Text style={[s.statusTxt, { color: sc.text }]}>{swap.status}</Text>
+        </View>
+      </View>
+
+      <View style={s.swapSkills}>
+        <View style={s.swapSkillItem}>
+          <Text style={s.swapSkillLabel}>THEY OFFER</Text>
+          <Text style={s.swapSkillName}>{swap.theyOffer}</Text>
+        </View>
+        <View style={s.swapArrow}><Text style={s.swapArrowTxt}>⇄</Text></View>
+        <View style={s.swapSkillItem}>
+          <Text style={s.swapSkillLabel}>YOU OFFER</Text>
+          <Text style={s.swapSkillName}>{swap.youOffer}</Text>
+        </View>
+      </View>
+
+      <View style={s.swapActions}>
+        {swap.status === 'pending' && !swap.isRequester && (
+          <>
+            <TouchableOpacity style={s.acceptBtn} onPress={() => onAccept?.(swap.id)}>
+              <CheckCircle size={16} color={C.white} />
+              <Text style={s.acceptTxt}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.rejectBtn} onPress={() => onReject?.(swap.id)}>
+              <XCircle size={16} color={C.white} />
+              <Text style={s.rejectTxt}>Reject</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {swap.status === 'pending' && swap.isRequester && (
+          <TouchableOpacity style={s.rejectBtn} onPress={() => onReject?.(swap.id)}>
+            <XCircle size={16} color={C.white} />
+            <Text style={s.rejectTxt}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+        {swap.status === 'active' && (
+          <>
+            <TouchableOpacity style={s.chatBtn} onPress={() => onChat?.(swap.otherUserId)}>
+              <MessageCircle size={16} color={C.white} />
+              <Text style={s.chatTxt}>Chat</Text>
+            </TouchableOpacity>
+            
+            {!swap.isFinished ? (
+              <TouchableOpacity style={s.finishBtn} onPress={() => onFinish?.(swap.id)}>
+                <CheckCircle size={16} color={C.white} />
+                <Text style={s.finishTxt}>Finish Swap</Text>
+              </TouchableOpacity>
+            ) : !swap.everyoneFinished ? (
+              <View style={s.waitingBtn}>
+                <Clock size={16} color={C.gray500} />
+                <Text style={s.waitingTxt}>Waiting...</Text>
+              </View>
+            ) : null}
+          </>
+        )}
+        {swap.status === 'completed' && !swap.hasRated && (
+          <TouchableOpacity style={s.rateFullBtn} onPress={() => onRate?.(swap.id)}>
+            <Text style={s.rateFullTxt}>Rate Experience</Text>
+          </TouchableOpacity>
+        )}
+        {swap.status === 'completed' && swap.hasRated && (
+          <View style={s.ratedBadge}>
+            <CheckCircle size={16} color={C.violet600} />
+            <Text style={s.ratedBadgeTxt}>Rated</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
+const s = StyleSheet.create({
+  swapCard: { backgroundColor: C.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.gray100, gap: 12, marginBottom: 12 },
+  swapTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  swapUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  swapAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.violet600, alignItems: 'center', justifyContent: 'center' },
+  swapAvatarTxt: { color: C.white, fontWeight: '700', fontSize: 16 },
+  swapUserName: { fontWeight: '600', fontSize: 15, color: C.gray900 },
+  swapDate: { fontSize: 12, color: C.gray400 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusTxt: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  swapSkills: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.gray50, borderRadius: 12, padding: 12 },
+  swapSkillItem: { flex: 1 },
+  swapSkillLabel: { fontSize: 9, fontWeight: '700', color: C.gray400, letterSpacing: 1, marginBottom: 2 },
+  swapSkillName: { fontSize: 14, fontWeight: '600', color: C.gray900 },
+  swapArrow: { paddingHorizontal: 8 },
+  swapArrowTxt: { fontSize: 20, color: C.violet600 },
+  swapActions: { flexDirection: 'row', gap: 8 },
+  acceptBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.violet600, paddingVertical: 10, borderRadius: 10 },
+  acceptTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red600, paddingVertical: 10, borderRadius: 10 },
+  rejectTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
+  chatBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.violet600, paddingVertical: 10, borderRadius: 10 },
+  chatTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
+  rateFullBtn: { flex: 1, backgroundColor: C.violet600, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  rateFullTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
+  finishBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.violet600, paddingVertical: 10, borderRadius: 10 },
+  finishTxt: { color: C.white, fontWeight: '600', fontSize: 14 },
+  waitingBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.gray200, paddingVertical: 10, borderRadius: 10 },
+  waitingTxt: { color: C.gray500, fontWeight: '600', fontSize: 14 },
+  ratedBadge: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
+  ratedBadgeTxt: { color: C.violet600, fontWeight: '600', fontSize: 14 },
+});

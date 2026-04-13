@@ -51,6 +51,14 @@ public class SwapsController {
         return ResponseEntity.ok(swapsService.rejectSwap(userDetails.getUsername(), id));
     }
 
+    // ── PATCH /api/swaps/{id}/finished ────────────────────────────────────────
+    @PatchMapping("/{id}/finished")
+    public ResponseEntity<SwapResponse> markAsFinished(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(swapsService.markAsFinished(userDetails.getUsername(), id));
+    }
+
     // ── POST /api/swaps/{id}/rate ─────────────────────────────────────────────
     @PostMapping("/{id}/rate")
     public ResponseEntity<Map<String, String>> rateSwap(

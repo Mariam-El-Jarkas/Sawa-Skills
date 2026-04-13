@@ -15,15 +15,23 @@ public interface ExchangeListingRepository extends JpaRepository<ExchangeListing
 
     List<ExchangeListing> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
 
+    List<ExchangeListing> findByOwnerIdAndActiveTrueOrderByCreatedAtDesc(Long ownerId);
+
     @Query("""
         SELECT l FROM ExchangeListing l
-        WHERE (:search = '' OR LOWER(l.offeredSkill) LIKE LOWER(CONCAT('%',:search,'%'))
-               OR LOWER(l.wantedSkill) LIKE LOWER(CONCAT('%',:search,'%')))
+        WHERE l.active = true
+        AND (:search IS NULL OR :search = ''
+             OR LOWER(l.offeredSkill) LIKE :search
+             OR LOWER(l.wantedSkill) LIKE :search
+             OR LOWER(l.owner.name) LIKE :search)
+        AND (:category IS NULL
+             OR LOWER(l.offeredSkill) LIKE :category)
         AND (:availability IS NULL OR l.availability = :availability)
         ORDER BY l.createdAt DESC
     """)
     Page<ExchangeListing> browse(
         @Param("search") String search,
+        @Param("category") String category,
         @Param("availability") String availability,
         Pageable pageable
     );

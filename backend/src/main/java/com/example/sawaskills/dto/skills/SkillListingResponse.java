@@ -19,4 +19,5 @@ public class SkillListingResponse {
     private String availability;
     private Double avgRating;
     private String createdAt;
+    private boolean alreadyRequested;
 }

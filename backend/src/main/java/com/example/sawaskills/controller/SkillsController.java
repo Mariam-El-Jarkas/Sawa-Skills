@@ -27,7 +27,12 @@ public class SkillsController {
             @RequestParam(required = false, defaultValue = "All") String availability,
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "20") int size) {
-        return ResponseEntity.ok(skillsService.browseListings(search, category, availability, page, size));
+        
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String email = (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) 
+                ? auth.getName() : null;
+                
+        return ResponseEntity.ok(skillsService.browseListings(email, search, category, availability, page, size));
     }
 
     // ── GET /api/skills/categories — list all categories (public) ────────────

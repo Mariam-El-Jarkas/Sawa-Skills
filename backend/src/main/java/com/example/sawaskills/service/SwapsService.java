@@ -7,9 +7,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.sawaskills.util.StringUtils;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,14 +22,18 @@ public class SwapsService {
     private final SwapRequestRepository swapRequestRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private final ExchangeListingRepository exchangeListingRepository;
+    private final RateLimiterService rateLimiterService;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final int MAX_SWAPS_PER_REQUEST = 100;
 
     // ── Create swap request ───────────────────────────────────────────────────
 
     @Transactional
     public SwapResponse createSwap(String email, CreateSwapRequest request) {
         User requester = findUser(email);
+        rateLimiterService.checkLimit("swap-create:" + email);
 
         if (requester.getId().equals(request.getReceiverId())) {
             throw new RuntimeException("You cannot send a swap request to yourself");
@@ -40,19 +46,34 @@ public class SwapsService {
             throw new RuntimeException("You already have an active or pending swap with this user");
         }
 
+        if (request.getListingId() != null && swapRequestRepository.existsByListingIdAndRequesterId(request.getListingId(), requester.getId())) {
+            throw new RuntimeException("You have already requested this swap");
+        }
+
+        ExchangeListing listing = null;
+        if (request.getListingId() != null) {
+            listing = exchangeListingRepository.findById(request.getListingId())
+                    .orElseThrow(() -> new RuntimeException("Listing not found"));
+        }
+
         SwapRequest swap = SwapRequest.builder()
                 .requester(requester)
                 .receiver(receiver)
-                .offeredSkill(sanitize(request.getOfferedSkill()))
-                .wantedSkill(sanitize(request.getWantedSkill()))
-                .preferredTime(request.getPreferredTime() != null ? sanitize(request.getPreferredTime()) : null)
-                .note(request.getNote() != null ? sanitize(request.getNote()) : null)
+                .offeredSkill(StringUtils.sanitize(request.getOfferedSkill()))
+                .wantedSkill(StringUtils.sanitize(request.getWantedSkill()))
+                .preferredTime(request.getPreferredTime() != null ? StringUtils.sanitize(request.getPreferredTime()) : null)
+                .note(request.getNote() != null ? StringUtils.sanitize(request.getNote()) : null)
+                .listing(listing)
                 .status("PENDING")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        swapRequestRepository.save(swap);
+        try {
+            swapRequestRepository.save(swap);
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("You have already requested this swap");
+        }
         return toResponse(swap, requester.getId());
     }
 
@@ -62,10 +83,11 @@ public class SwapsService {
         User user = findUser(email);
         List<SwapRequest> swaps;
 
+        PageRequest limit = PageRequest.of(0, MAX_SWAPS_PER_REQUEST);
         if (statusFilter == null || statusFilter.equalsIgnoreCase("all")) {
-            swaps = swapRequestRepository.findAllByUserId(user.getId());
+            swaps = swapRequestRepository.findAllByUserId(user.getId(), limit);
         } else {
-            swaps = swapRequestRepository.findAllByUserIdAndStatus(user.getId(), statusFilter.toUpperCase());
+            swaps = swapRequestRepository.findAllByUserIdAndStatus(user.getId(), statusFilter.toUpperCase(), limit);
         }
 
         return swaps.stream()
@@ -118,6 +140,44 @@ public class SwapsService {
         return toResponse(swap, user.getId());
     }
 
+    // ── Mark as finished ─────────────────────────────────────────────────────
+
+    @Transactional
+    public SwapResponse markAsFinished(String email, Long swapId) {
+        User user = findUser(email);
+        SwapRequest swap = swapRequestRepository.findById(swapId)
+                .orElseThrow(() -> new RuntimeException("Swap not found"));
+
+        if (!"ACTIVE".equals(swap.getStatus())) {
+            throw new RuntimeException("Only active swaps can be marked as finished");
+        }
+
+        boolean isRequester = swap.getRequester().getId().equals(user.getId());
+        boolean isReceiver = swap.getReceiver().getId().equals(user.getId());
+
+        if (!isRequester && !isReceiver) {
+            throw new RuntimeException("You are not part of this swap");
+        }
+
+        if (isRequester) swap.setRequesterFinished(true);
+        else swap.setReceiverFinished(true);
+
+        if (Boolean.TRUE.equals(swap.getRequesterFinished()) && Boolean.TRUE.equals(swap.getReceiverFinished())) {
+            swap.setStatus("COMPLETED");
+            
+            // Deactivate associated listing if exists
+            if (swap.getListing() != null) {
+                ExchangeListing listing = swap.getListing();
+                listing.setActive(false);
+                exchangeListingRepository.save(listing);
+            }
+        }
+
+        swap.setUpdatedAt(LocalDateTime.now());
+        swapRequestRepository.save(swap);
+        return toResponse(swap, user.getId());
+    }
+
     // ── Rate swap ─────────────────────────────────────────────────────────────
 
     @Transactional
@@ -131,54 +191,34 @@ public class SwapsService {
         if (!isParticipant) {
             throw new RuntimeException("You are not part of this swap");
         }
-        if (!"ACTIVE".equals(swap.getStatus()) && !"COMPLETED".equals(swap.getStatus())) {
-            throw new RuntimeException("You can only rate active or completed swaps");
+        if (!"COMPLETED".equals(swap.getStatus())) {
+            throw new RuntimeException("You can only rate a completed swap");
         }
 
-        // Determine the other user
         User reviewedUser = swap.getRequester().getId().equals(reviewer.getId())
                 ? swap.getReceiver()
                 : swap.getRequester();
 
-        if (reviewRepository.existsByReviewerIdAndReviewedUserId(reviewer.getId(), reviewedUser.getId())) {
+        if (reviewRepository.existsByReviewerIdAndSwapId(reviewer.getId(), swapId)) {
             throw new RuntimeException("You have already rated this user for this swap");
         }
 
         Review review = Review.builder()
                 .reviewer(reviewer)
                 .reviewedUser(reviewedUser)
+                .swapId(swapId)
                 .rating(request.getRating())
-                .comment(request.getComment() != null ? sanitize(request.getComment()) : null)
+                .comment(request.getComment() != null ? StringUtils.sanitize(request.getComment()) : null)
                 .createdAt(LocalDateTime.now())
                 .build();
         reviewRepository.save(review);
-
-        // Mark swap as completed once both parties have rated
-        if (bothPartiesRated(swap)) {
-            swap.setStatus("COMPLETED");
-            swap.setUpdatedAt(LocalDateTime.now());
-            swapRequestRepository.save(swap);
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private boolean bothPartiesRated(SwapRequest swap) {
-        return reviewRepository.existsByReviewerIdAndReviewedUserId(
-                        swap.getRequester().getId(), swap.getReceiver().getId())
-                && reviewRepository.existsByReviewerIdAndReviewedUserId(
-                        swap.getReceiver().getId(), swap.getRequester().getId());
     }
 
     private SwapResponse toResponse(SwapRequest swap, Long currentUserId) {
         boolean isRequester = swap.getRequester().getId().equals(currentUserId);
         User other = isRequester ? swap.getReceiver() : swap.getRequester();
 
-        String initials = other.getName() == null ? "??" :
-                Arrays.stream(other.getName().split(" "))
-                        .map(w -> String.valueOf(w.charAt(0)).toUpperCase())
-                        .limit(2)
-                        .collect(Collectors.joining());
+        String initials = StringUtils.buildInitials(other.getName());
 
         return SwapResponse.builder()
                 .id(swap.getId())
@@ -192,6 +232,9 @@ public class SwapsService {
                 .note(swap.getNote())
                 .preferredTime(swap.getPreferredTime())
                 .isRequester(isRequester)
+                .hasRated(reviewRepository.existsByReviewerIdAndSwapId(currentUserId, swap.getId()))
+                .isFinished(isRequester ? Boolean.TRUE.equals(swap.getRequesterFinished()) : Boolean.TRUE.equals(swap.getReceiverFinished()))
+                .everyoneFinished(Boolean.TRUE.equals(swap.getRequesterFinished()) && Boolean.TRUE.equals(swap.getReceiverFinished()))
                 .build();
     }
 
@@ -200,8 +243,4 @@ public class SwapsService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    private String sanitize(String input) {
-        if (input == null) return null;
-        return input.trim().replaceAll("<[^>]*>", "");
-    }
 }

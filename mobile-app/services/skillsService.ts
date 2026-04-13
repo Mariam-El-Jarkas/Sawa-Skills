@@ -14,6 +14,7 @@ export interface SkillListing {
   availability: 'Remote' | 'On-site' | null;
   avgRating: number;
   createdAt: string;
+  alreadyRequested: boolean;
 }
 
 export interface UserSkill {
@@ -21,6 +22,7 @@ export interface UserSkill {
   skillName: string;
   category: string | null;
   offering: boolean;
+  isPublic: boolean;
 }
 
 export interface BrowseParams {

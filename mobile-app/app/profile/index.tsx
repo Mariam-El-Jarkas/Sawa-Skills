@@ -731,7 +731,7 @@ export default function ProfileScreen() {
                  >
                    {((verifyStep === 2 && (verifyImages.idFront || verifyImages.idBack)) || (verifyStep === 3 && verifyImages.selfie)) ? (
                      <Image 
-                       source={{ uri: verifyStep === 2 ? (verifyImages.idBack || verifyImages.idFront) : verifyImages.selfie }} 
+                       source={{ uri: (verifyStep === 2 ? (verifyImages.idBack || verifyImages.idFront) : verifyImages.selfie) || '' }} 
                        style={{ width: '100%', height: '100%', borderRadius: 12 }} 
                      />
                    ) : (
@@ -741,14 +741,16 @@ export default function ProfileScreen() {
                      </>
                    )}
                  </TouchableOpacity>
-                 <View style={s.verifyBtns}>
+                  <View style={s.verifyBtns}>
                   <TouchableOpacity style={s.verifyBack} onPress={() => setVerifyStep(verifyStep - 1)}><Text style={s.verifyBackTxt}>Back</Text></TouchableOpacity>
                   <TouchableOpacity 
-                    style={[s.verifyNext, (verifyStep === 2 && !verifyImages.idFront) && s.verifyNextDisabled]} 
+                    style={[s.verifyNext, ((verifyStep === 2 && !verifyImages.idFront) || (verifyStep === 3 && !verifyImages.selfie)) && s.verifyNextDisabled]} 
                     onPress={() => setVerifyStep(verifyStep + 1)}
-                    disabled={verifyStep === 2 && !verifyImages.idFront}
+                    disabled={(verifyStep === 2 && !verifyImages.idFront) || (verifyStep === 3 && !verifyImages.selfie)}
                   >
-                    <Text style={s.verifyNextTxt}>{verifyStep === 2 && verifyImages.idFront ? 'Confirm & Next' : 'Upload Image'}</Text>
+                    <Text style={s.verifyNextTxt}>
+                      {verifyStep === 2 ? (verifyImages.idFront ? 'Confirm & Next' : 'Upload Image') : (verifyImages.selfie ? 'Confirm & Next' : 'Upload Image')}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -794,7 +796,9 @@ export default function ProfileScreen() {
                          setVerifyStep(0);
                          setVerifyType(null);
                          setVerifyImages({ idFront: null, idBack: null, selfie: null });
-                         setVerifyData({ fullName: '', dob: '', parentEmail: '', why: '', experience: '', skillsToShare: '' });
+                         setVerifyData({ fullName: '', dob: '' });
+                         setParentEmail('');
+                         setVolApp({ why: '', experience: '', skills: '' });
                          setShowVerifyModal(false); 
                          // Refresh after closing for smoothness
                          setTimeout(refresh, 500);
@@ -848,7 +852,12 @@ export default function ProfileScreen() {
                 <Text style={[s.verifyChoiceSub, { textAlign: 'center' }]}>
                   An approval link has been sent to{'\n'}<Text style={{ fontWeight: '700', color: C.violet600 }}>{parentEmail}</Text>.{'\n\n'}Your account will be fully activated once your parent approves.
                 </Text>
-                <TouchableOpacity style={s.verifyNext} onPress={() => { setShowVerifyModal(false); setVerifyStep(0); setVerifyType(null); }}>
+                <TouchableOpacity style={s.verifyNext} onPress={() => { 
+                  setShowVerifyModal(false); 
+                  setVerifyStep(0); 
+                  setVerifyType(null);
+                  setParentEmail('');
+                }}>
                   <Text style={s.verifyNextTxt}>Got it!</Text>
                 </TouchableOpacity>
               </View>
@@ -928,7 +937,12 @@ export default function ProfileScreen() {
                       </TouchableOpacity>
                     )}
                     {['PENDING', 'APPROVED', 'REJECTED'].includes(profile?.volunteerStatus as string) && (
-                      <TouchableOpacity style={s.verifyNext} onPress={() => { setShowVerifyModal(false); setVerifyStep(0); setVerifyType(null); }}>
+                      <TouchableOpacity style={s.verifyNext} onPress={() => { 
+                  setShowVerifyModal(false); 
+                  setVerifyStep(0); 
+                  setVerifyType(null);
+                  setVolApp({ why: '', experience: '', skills: '' });
+                }}>
                         <Text style={s.verifyNextTxt}>Close</Text>
                       </TouchableOpacity>
                     )}
@@ -944,7 +958,12 @@ export default function ProfileScreen() {
                 <Text style={[s.verifyChoiceSub, { textAlign: 'center' }]}>
                   Our team will review your application and get back to you soon.
                 </Text>
-                <TouchableOpacity style={s.verifyNext} onPress={() => { setShowVerifyModal(false); setVerifyStep(0); setVerifyType(null); }}>
+                <TouchableOpacity style={s.verifyNext} onPress={() => { 
+                  setShowVerifyModal(false); 
+                  setVerifyStep(0); 
+                  setVerifyType(null);
+                  setVolApp({ why: '', experience: '', skills: '' });
+                }}>
                   <Text style={s.verifyNextTxt}>Got it!</Text>
                 </TouchableOpacity>
               </View>

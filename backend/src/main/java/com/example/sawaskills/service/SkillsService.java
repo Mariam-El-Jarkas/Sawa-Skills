@@ -10,9 +10,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.sawaskills.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,28 +27,35 @@ public class SkillsService {
     private final SkillRepository skillRepository;
     private final SkillCategoryRepository skillCategoryRepository;
     private final ReviewRepository reviewRepository;
+    private final SwapRequestRepository swapRequestRepository;
 
     // ── Browse listings ───────────────────────────────────────────────────────
 
-    public List<SkillListingResponse> browseListings(String search, String category, String availability, int page, int size) {
-        String normalizedSearch = (search == null || search.trim().isEmpty()) ? "" : search;
+    public List<SkillListingResponse> browseListings(String currentEmail, String search, String category, String availability, int page, int size) {
+        String normalizedSearch = (search == null || search.trim().isEmpty()) ? "" : "%" + search.toLowerCase() + "%";
         String normalizedAvail = (availability != null && availability.equals("All")) ? null : availability;
+        String normalizedCat = (category == null || category.equals("All")) ? null : "%" + category.toLowerCase() + "%";
 
-        Pageable pageable = PageRequest.of(page, size);
-        Page<ExchangeListing> listings;
-
-        if (category != null && !category.equals("All")) {
-            // Filter by category: check if offeredSkill matches category name
-            listings = listingRepository.browse(normalizedSearch, normalizedAvail, pageable);
-            return listings.stream()
-                    .filter(l -> l.getOfferedSkill().toLowerCase().contains(category.toLowerCase())
-                            || (l.getOwner() != null && hasSkillInCategory(l.getOwner().getId(), category)))
-                    .map(l -> toListingResponse(l))
-                    .collect(Collectors.toList());
+        Long currentUserId = null;
+        if (currentEmail != null) {
+            currentUserId = userRepository.findByEmail(currentEmail).map(User::getId).orElse(null);
         }
 
-        listings = listingRepository.browse(normalizedSearch, normalizedAvail, pageable);
-        return listings.stream().map(this::toListingResponse).collect(Collectors.toList());
+        Pageable pageable = PageRequest.of(page, size);
+        final Long finalUserId = currentUserId;
+
+        Page<ExchangeListing> listings = listingRepository.browse(normalizedSearch, normalizedCat, normalizedAvail, pageable);
+
+        // Batch-fetch all avg ratings in one query instead of N+1
+        List<Long> ownerIds = listings.stream()
+                .map(l -> l.getOwner().getId()).distinct().collect(Collectors.toList());
+        Map<Long, Double> ratingMap = ownerIds.isEmpty() ? Map.of() :
+                reviewRepository.findAvgRatingsByUserIds(ownerIds).stream()
+                        .collect(Collectors.toMap(r -> (Long) r[0], r -> r[1] != null ? (Double) r[1] : 0.0));
+
+        return listings.getContent().stream()
+                .map(l -> this.toListingResponse(l, finalUserId, ratingMap))
+                .collect(Collectors.toList());
     }
 
     // ── Get categories ────────────────────────────────────────────────────────
@@ -67,23 +76,23 @@ public class SkillsService {
 
         ExchangeListing listing = ExchangeListing.builder()
                 .owner(user)
-                .offeredSkill(sanitize(request.getOfferedSkill()))
-                .wantedSkill(sanitize(request.getWantedSkill()))
-                .location(request.getLocation() != null ? sanitize(request.getLocation()) : null)
+                .offeredSkill(StringUtils.sanitize(request.getOfferedSkill()))
+                .wantedSkill(StringUtils.sanitize(request.getWantedSkill()))
+                .location(request.getLocation() != null ? StringUtils.sanitize(request.getLocation()) : null)
                 .availability(request.getAvailability())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         listingRepository.save(listing);
-        return toListingResponse(listing);
+        return toListingResponse(listing, user.getId());
     }
 
     // ── Get my listings ───────────────────────────────────────────────────────
 
     public List<SkillListingResponse> getMyListings(String email) {
         User user = findUser(email);
-        return listingRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId())
-                .stream().map(this::toListingResponse).collect(Collectors.toList());
+        return listingRepository.findByOwnerIdAndActiveTrueOrderByCreatedAtDesc(user.getId())
+                .stream().map(l -> this.toListingResponse(l, user.getId())).collect(Collectors.toList());
     }
 
     // ── Delete listing ────────────────────────────────────────────────────────
@@ -96,7 +105,9 @@ public class SkillsService {
         if (!listing.getOwner().getId().equals(user.getId())) {
             throw new RuntimeException("You can only delete your own listings");
         }
-        listingRepository.delete(listing);
+        listing.setActive(false);
+        listingRepository.save(listing);
+        swapRequestRepository.cancelActiveSwapsForListing(listingId);
     }
 
     // ── Add offered skill ─────────────────────────────────────────────────────
@@ -151,7 +162,7 @@ public class SkillsService {
 
     private UserSkillResponse addUserSkill(String email, AddUserSkillRequest request, boolean offering) {
         User user = findUser(email);
-        String skillName = sanitize(request.getSkillName());
+        String skillName = StringUtils.sanitize(request.getSkillName());
 
         // Find or create the Skill entity
         Skill skill = skillRepository.findBySkillNameIgnoreCase(skillName).orElseGet(() -> {
@@ -181,15 +192,16 @@ public class SkillsService {
         return toUserSkillResponse(us);
     }
 
-    private SkillListingResponse toListingResponse(ExchangeListing l) {
-        User owner = l.getOwner();
-        String initials = owner.getName() == null ? "??" :
-                java.util.Arrays.stream(owner.getName().split(" "))
-                        .map(w -> String.valueOf(w.charAt(0)).toUpperCase())
-                        .limit(2)
-                        .collect(Collectors.joining());
+    private SkillListingResponse toListingResponse(ExchangeListing l, Long currentUserId) {
+        double avgRating = reviewRepository.findAvgRatingByReviewedUserId(l.getOwner().getId()).orElse(0.0);
+        return toListingResponse(l, currentUserId, Map.of(l.getOwner().getId(), avgRating));
+    }
 
-        double avgRating = reviewRepository.findAvgRatingByReviewedUserId(owner.getId()).orElse(0.0);
+    private SkillListingResponse toListingResponse(ExchangeListing l, Long currentUserId, Map<Long, Double> ratingMap) {
+        User owner = l.getOwner();
+        String initials = StringUtils.buildInitials(owner.getName());
+
+        double avgRating = ratingMap.getOrDefault(owner.getId(), 0.0);
 
         return SkillListingResponse.builder()
                 .id(l.getId())
@@ -203,31 +215,27 @@ public class SkillsService {
                 .availability(l.getAvailability())
                 .avgRating(Math.round(avgRating * 10.0) / 10.0)
                 .createdAt(l.getCreatedAt() != null ? l.getCreatedAt().toString() : null)
+                .alreadyRequested(currentUserId != null && l.getId() != null && 
+                        swapRequestRepository.existsByListingIdAndRequesterId(l.getId(), currentUserId))
                 .build();
     }
 
     private UserSkillResponse toUserSkillResponse(UserSkill us) {
+        Skill skill = us.getSkill();
+        if (skill == null) throw new RuntimeException("Data integrity error: skill record missing for user skill id=" + us.getId());
         return UserSkillResponse.builder()
                 .id(us.getId())
-                .skillName(us.getSkill().getSkillName())
-                .category(us.getSkill().getCategory() != null ? us.getSkill().getCategory().getName() : null)
+                .skillName(skill.getSkillName())
+                .category(skill.getCategory() != null ? skill.getCategory().getName() : null)
                 .offering(us.getOffering())
+                .isPublic(!"hidden".equals(us.getLevel()))
                 .build();
     }
 
-    private boolean hasSkillInCategory(Long userId, String category) {
-        return userSkillRepository.findByUserIdAndOffering(userId, true).stream()
-                .anyMatch(us -> us.getSkill().getCategory() != null &&
-                        us.getSkill().getCategory().getName().equalsIgnoreCase(category));
-    }
 
     private User findUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    private String sanitize(String input) {
-        if (input == null) return null;
-        return input.trim().replaceAll("<[^>]*>", "");
-    }
 }
