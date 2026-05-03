@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native';
+import { useToast } from '../../components/modals/AppToast';
 import { Search, Filter } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +26,7 @@ export default function SkillsScreen() {
     createListing, deleteListing,
     addOfferedSkill, addWantedSkill,
   } = useSkills();
+  const { showToast } = useToast();
 
   const [view, setView] = useState<'browse' | 'my-exchange' | 'add'>('browse');
   const [selectedCat, setSelectedCat] = useState(ALL_CATEGORY);
@@ -54,7 +56,7 @@ export default function SkillsScreen() {
     try {
       await deleteListing(id);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to delete listing');
+      showToast(e.message || 'Failed to delete listing', 'error');
     } finally {
       setIsDeletingId(null);
     }
@@ -131,7 +133,7 @@ export default function SkillsScreen() {
       setFormErrors({});
       setView('my-exchange');
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to create listing');
+      showToast(e.message ?? 'Failed to create listing', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -155,14 +157,14 @@ export default function SkillsScreen() {
       setFormErrors({});
       setView('my-exchange');
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to add skill');
+      showToast(e.message ?? 'Failed to add skill', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const offeredForModal = myOffered.map(s => ({ id: s.id, name: s.skillName }));
-  const displayCategories = [ALL_CATEGORY, ...categories.filter(c => c !== ALL_CATEGORY)];
+  const offeredForModal = (Array.isArray(myOffered) ? myOffered : []).map(s => ({ id: s.id, name: s.skillName }));
+  const displayCategories = [ALL_CATEGORY, ...(Array.isArray(categories) ? categories.filter(c => c !== ALL_CATEGORY) : [])];
 
   return (
     <ScrollView

@@ -9,6 +9,7 @@ export interface VolunteerSession {
   status: string;
   participants: number;
   isJoined: boolean;
+  isOrganizer: boolean;
   location?: string;
   groupChatId?: number | null;
 }
@@ -20,12 +21,11 @@ export interface CreateSessionData {
   time?: string;
   location?: string;
   skills?: string;
-  createGroupChat?: boolean;
 }
 
 export const volunteerService = {
-  getAllSessions(): Promise<VolunteerSession[]> {
-    return apiGet<VolunteerSession[]>('/api/volunteer/sessions');
+  getAllSessions(token?: string): Promise<VolunteerSession[]> {
+    return apiGet<VolunteerSession[]>('/api/volunteer/sessions', token);
   },
 
   getMySessions(token: string): Promise<VolunteerSession[]> {
@@ -37,7 +37,6 @@ export const volunteerService = {
       title: data.name,
       description: data.description,
       sessionDate: data.date,
-      createGroupChat: data.createGroupChat
     }, token);
   },
 

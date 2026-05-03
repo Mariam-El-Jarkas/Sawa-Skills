@@ -1,0 +1,8 @@
+ok so in my app we have guest mode where he can browese hom,e page skills pages and news pagfes but he cant do any funcationnality like request swap or view profile or comment onn news page oe etc it will give him log on alert same alertt for  any other functioanlity 
+well we have create ur acc page name/email/phone number date of birthft passwoord or contouie with google github facebooke  or a log in page email and pass or conmtoue with etc yk?
+after i l log in i can see profile where it display swaps rating reviews location name my connectioisn skills i offers  skills i want  about(description) and a verify ur accoiunt option 
+there is 2 type noif verditiction (adult verifcation /munor one)
+adult ask for name /date of birth his id friont back/selfie/then we send him verification notif tion later) after that he earn 18+ verified badge on hios profile so he can use all app mfunctiionality freely 
+wel then we have minor acc verification whwere it ask for emial of parent the we tell them email send blah blah we will gibve him minor badge after parent approve so his acc work as muinor 
+minors acc are limited like when thet request swap or wanna chat or join anything thety need parent approve
+anw normal adult accoutn in home page we hve

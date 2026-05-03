@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { C, G } from './theme';
 
 export function Header() {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, unreadNotificationsCount } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -23,7 +23,9 @@ export function Header() {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/notifications')} style={s.bellWrap}>
               <Bell size={24} color={C.white} />
-              <View style={s.badge}><Text style={s.badgeText}>3</Text></View>
+              {unreadNotificationsCount > 0 && (
+                <View style={s.badge}><Text style={s.badgeText}>{unreadNotificationsCount}</Text></View>
+              )}
             </TouchableOpacity>
           </>
         ) : (

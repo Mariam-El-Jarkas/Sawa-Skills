@@ -50,6 +50,16 @@ public class VerificationService {
                     }
                 });
 
+        if ("VOLUNTEER".equals(typeStr)) {
+            boolean isAdult = verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "ADULT")
+                    .map(req -> "APPROVED".equals(req.getStatus())).orElse(false);
+            boolean isMinor = verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "MINOR")
+                    .map(req -> "APPROVED".equals(req.getStatus())).orElse(false);
+            if (!isAdult && !isMinor) {
+                throw new RuntimeException("You must be a verified Minor or Adult before applying for Volunteer.");
+            }
+        }
+
         LocalDate dobDate = null;
         if (submission.getDob() != null && !submission.getDob().isBlank()) {
             try {
@@ -128,20 +138,39 @@ public class VerificationService {
     }
 
     private String saveImage(String base64, String prefix) {
-        if (base64 == null || base64.isBlank()) return null;
+        if (base64 == null || base64.isBlank()) {
+            log.warn("saveImage called with null/empty base64 for {}", prefix);
+            return null;
+        }
         if (base64.startsWith("/")) return base64; // Already a path
 
         try {
-            String encoded = base64.contains(",") ? base64.split(",")[1] : base64;
-            byte[] bytes = Base64.getDecoder().decode(encoded);
+            // Clean up base64 string
+            String encoded = base64;
+            if (base64.contains(",")) {
+                encoded = base64.split(",")[1];
+            }
+            
+            // Log a snippet of the base64 for debugging (safely)
+            log.info("Decoding image for {}: length={}, prefix={}", prefix, encoded.length(), encoded.substring(0, Math.min(encoded.length(), 20)));
+            
+            byte[] bytes = Base64.getDecoder().decode(encoded.trim());
             String filename = prefix + "_" + UUID.randomUUID() + ".jpg";
             Path path = Paths.get(uploadsDir, "verifications", filename);
             Files.createDirectories(path.getParent());
             Files.write(path, bytes);
+            
+            log.info("Image saved successfully: {}", filename);
             return "/uploads/verifications/" + filename;
+        } catch (IllegalArgumentException e) {
+            log.error("Base64 decoding failed for {}: {}", prefix, e.getMessage());
+            throw new RuntimeException("Invalid image format. Decoding failed.");
+        } catch (IOException e) {
+            log.error("File system error saving image {}: {}", prefix, e.getMessage());
+            throw new RuntimeException("Server failed to save your image. Please check permissions.");
         } catch (Exception e) {
-            log.error("Image save failed: {}", e.getMessage());
-            return null;
+            log.error("Unexpected error in saveImage for {}: {}", prefix, e.getMessage());
+            throw new RuntimeException("An unexpected error occurred while saving images.");
         }
     }
 

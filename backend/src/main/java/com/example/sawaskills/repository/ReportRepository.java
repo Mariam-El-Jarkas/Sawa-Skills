@@ -11,4 +11,8 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     List<Report> findByStatus(String status);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM Report r WHERE r.reportedPost.id = :postId")
+    void deleteByReportedPostId(@org.springframework.data.repository.query.Param("postId") Long postId);
+
 }

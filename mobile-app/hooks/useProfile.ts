@@ -162,7 +162,7 @@ export function useProfile(userId?: number | string) {
       body: JSON.stringify({ type: 'VOLUNTEER', why, experience, skillsToShare }),
     });
     if (!res.ok) throw new Error(await parseError(res, 'Failed to apply for volunteer badge'));
-    setProfile(p => p ? { ...p, volunteerStatus: 'PENDING', isVolunteer: true } : p);
+    setProfile(p => p ? { ...p, volunteerStatus: 'PENDING' } : p);
   }, [token]);
 
   const requestEmailChange = useCallback(async (newEmail: string): Promise<void> => {
@@ -213,6 +213,14 @@ export function useProfile(userId?: number | string) {
     if (!res.ok) throw new Error(await parseError(res, 'Failed to submit support request'));
   }, [token]);
 
+  const deleteAccount = useCallback(async (): Promise<void> => {
+    const res = await fetch(`${BASE_URL}/api/profile`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error(await parseError(res, 'Failed to delete account'));
+  }, [token]);
+
   return {
     profile,
     loading,
@@ -227,5 +235,6 @@ export function useProfile(userId?: number | string) {
     verifyCurrentEmail,
     confirmEmailChange,
     submitSupportRequest,
+    deleteAccount,
   };
 }

@@ -60,4 +60,18 @@ public class ChatController {
         chatService.markRead(userDetails.getUsername(), id);
         return ResponseEntity.ok(Map.of("message", "Messages marked as read"));
     }
+
+    // ── PATCH /api/chat/conversations/{id}/permissions ────────────────────────
+    @PatchMapping("/conversations/{id}/permissions")
+    public ResponseEntity<Map<String, String>> updatePermissions(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body) {
+        Boolean everyoneCanMessage = body.get("everyoneCanMessage");
+        if (everyoneCanMessage == null) {
+            throw new RuntimeException("everyoneCanMessage field is required");
+        }
+        chatService.updatePermissions(userDetails.getUsername(), id, everyoneCanMessage);
+        return ResponseEntity.ok(Map.of("message", "Permissions updated successfully"));
+    }
 }

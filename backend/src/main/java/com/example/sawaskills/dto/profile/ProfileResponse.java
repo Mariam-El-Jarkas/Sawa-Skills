@@ -23,8 +23,11 @@ public class ProfileResponse {
 
     // Badges & Statuses
     private String volunteerStatus;
+    @com.fasterxml.jackson.annotation.JsonProperty("isAgeVerified")
     private boolean isAgeVerified;
+    @com.fasterxml.jackson.annotation.JsonProperty("isMinorVerified")
     private boolean isMinorVerified;
+    @com.fasterxml.jackson.annotation.JsonProperty("isVolunteer")
     private boolean isVolunteer;
     private String ageVerificationStatus;
 

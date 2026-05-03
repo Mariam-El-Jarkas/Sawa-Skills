@@ -1,0 +1,1757 @@
+SAWASKILLS JIRA BOARD
+SPRINT 1 — Project Foundation & Environment Setup
+
+Goal: Prepare development environment and base architecture so the team can start building features safely.
+
+Story 1 — Initialize Project Repository
+Description
+
+Create the main repository for the SawaSkills project including backend, mobile, ML service, documentation, and Docker configuration. The repository must follow a clean structure to support scalable development.
+
+Subtask: Create Git repository
+
+Description
+
+Initialize a Git repository and create the main project directory structure.
+
+Required structure:
+
+backend/
+mobile-app/
+ml-service/
+docker/
+docs/
+
+Push the initial commit to the remote repository.
+
+Subtask: Configure branching strategy
+
+Description
+
+Set up a Git workflow suitable for startup development.
+
+Branches:
+
+main
+develop
+feature/*
+hotfix/*
+
+The main branch should always remain production-ready.
+
+Subtask: Create initial README
+
+Description
+
+Create the project README including:
+
+project description
+features overview
+technology stack
+installation instructions
+API documentation section
+Subtask: Configure Git ignore
+
+Description
+
+Add .gitignore files for:
+
+Java / Maven
+Node.js
+Python
+Docker
+
+Ensure build artifacts and secrets are not committed.
+
+Story 2 — Setup Development Environment
+Description
+
+Prepare a local development environment so all developers can run the platform locally.
+
+Subtask: Configure environment variables
+
+Description
+
+Create .env configuration file containing environment variables required by the backend.
+
+Variables include:
+
+DATABASE_URL
+JWT_SECRET
+EMAIL_SERVICE_KEY
+ML_SERVICE_URL
+
+Ensure secrets are not committed to Git.
+
+Subtask: Setup PostgreSQL connection using Neon
+
+Description
+
+Create a Neon database instance and configure backend connection string.
+
+Add configuration in Spring Boot:
+
+spring.datasource.url
+spring.datasource.username
+spring.datasource.password
+
+Test successful database connectivity.
+
+Subtask: Setup Docker environment
+
+Description
+
+Create Dockerfiles for:
+
+backend service
+ML service
+
+Create Docker Compose file to run:
+
+backend
+PostgreSQL (development fallback)
+ML service
+Subtask: Verify local environment
+
+Description
+
+Run the entire system using:
+
+docker-compose up
+
+Verify:
+
+backend runs
+database connects
+ML service responds
+Story 3 — Setup Backend Architecture
+Description
+
+Create the core Spring Boot backend architecture following best practices for scalable backend systems.
+
+Subtask: Create Spring Boot project
+
+Description
+
+Initialize Spring Boot project using Maven with dependencies:
+
+Spring Web
+Spring Security
+Spring Data JPA
+PostgreSQL Driver
+Lombok
+Validation
+Subtask: Implement layered architecture
+
+Description
+
+Create project structure:
+
+controller/
+service/
+repository/
+model/
+dto/
+config/
+security/
+exception/
+
+Each layer must have clear responsibility.
+
+Subtask: Configure database migration tool
+
+Description
+
+Integrate Flyway or Liquibase for database migrations.
+
+This ensures schema changes are version controlled.
+
+Subtask: Implement base entity class
+
+Description
+
+Create a base entity with common attributes:
+
+id
+createdAt
+updatedAt
+
+All database entities must inherit from this base class.
+
+Subtask: Implement global exception handler
+
+Description
+
+Create centralized exception handling using @ControllerAdvice.
+
+Ensure consistent API error responses.
+
+Story 4 — Setup Mobile Application
+Description
+
+Initialize the React Native mobile app that will serve as the main client for the platform.
+
+Subtask: Create React Native project
+
+Description
+
+Initialize the mobile project using React Native CLI.
+
+Verify the project runs successfully on Android emulator.
+
+Subtask: Configure mobile project structure
+
+Description
+
+Create scalable folder structure:
+
+components/
+screens/
+services/
+navigation/
+hooks/
+utils/
+Subtask: Setup API client
+
+Description
+
+Create API service using Axios.
+
+Configure:
+
+base URL
+authentication headers
+error handling
+Story 5 — Setup ML Microservice
+Description
+
+Create a Python microservice responsible for classifying skill-related news articles.
+
+Subtask: Initialize ML service project
+
+Description
+
+Create Python FastAPI project.
+
+Install dependencies:
+
+fastapi
+uvicorn
+scikit-learn
+pandas
+numpy
+Subtask: Implement classification endpoint
+
+Description
+
+Create API endpoint:
+
+POST /classify-news
+
+Input:
+
+article_text
+
+Output:
+
+skill_category
+Subtask: Train basic classification model
+
+Description
+
+Implement machine learning pipeline using:
+
+TF-IDF vectorization
+Logistic Regression classifier
+
+Train model on a small dataset of categorized skill articles.
+
+Story 6 — Sprint Testing Tasks
+Description
+
+Ensure the development environment works correctly before continuing development.
+
+Subtasks
+
+Write basic backend unit tests
+Test API endpoints using Postman
+Test ML service endpoint
+Verify database connectivity
+
+Story 7 — Sprint Documentation Tasks
+Description
+
+Document the project architecture and setup procedures.
+
+Subtasks
+
+Document backend architecture
+Document mobile project structure
+Create system architecture diagram
+Update README with setup instructions
+
+Result of Sprint 1
+
+After Sprint 1:
+
+Repository ready
+Backend architecture ready
+Mobile app initialized
+ML service initialized
+Database configured
+Docker environment working
+Documentation created
+Next Step
+
+If you want, I’ll generate Sprint 2–4 next, which will include:
+
+authentication
+OAuth
+user profiles
+skills
+identity verification
+search system
+location filtering
+
+These sprints will already reach ~60 Jira tasks, and they will be very close to real startup backlogs.
+
+Yes generate
+SPRINT 2 — Authentication & User Accounts
+
+Goal: implement the complete authentication system.
+
+Story 1 — User Registration
+Description
+
+Implement user registration allowing users to create an account using name, email, phone number, date of birth, and password.
+
+Subtask: Create User entity
+
+Description
+
+Create User entity with the following fields:
+
+id
+name
+email
+phoneNumber
+passwordHash
+dateOfBirth
+bio
+profilePicture
+city
+role
+isVerified
+isEmailVerified
+createdAt
+updatedAt
+
+Ensure email is unique.
+
+Subtask: Implement user repository
+
+Description
+
+Create Spring Data repository for User entity with methods:
+
+findByEmail()
+existsByEmail()
+Subtask: Implement registration service
+
+Description
+
+Create service method that:
+
+validates input
+hashes password using BCrypt
+stores user in database
+generates OTP verification code
+sends verification email
+Subtask: Create registration API endpoint
+
+Description
+
+Create REST endpoint:
+
+POST /api/auth/register
+
+Payload:
+
+name
+email
+phone
+password
+dateOfBirth
+city
+Subtask: Test registration API
+
+Description
+
+Use Postman to verify:
+
+user is saved
+password hashed
+OTP generated
+duplicate email rejected
+Subtask: Document registration API
+
+Description
+
+Add endpoint documentation in Swagger.
+
+Story 2 — Email Verification (OTP)
+Description
+
+Users must verify their email before accessing the platform.
+
+Subtask: Create OTP entity
+
+Description
+
+Entity fields:
+
+id
+email
+otpCode
+expiresAt
+
+OTP must expire after 10 minutes.
+
+Subtask: Implement OTP generation logic
+
+Description
+
+Generate secure random 6-digit OTP.
+
+Store hashed OTP in database.
+
+Subtask: Implement verification endpoint
+
+Description
+
+Endpoint:
+
+POST /api/auth/verify-email
+
+Validate OTP and activate account.
+
+Subtask: Send verification email
+
+Description
+
+Use email service (SendGrid or similar) to send:
+
+Your verification code is: XXXX
+Subtask: Test verification flow
+
+Description
+
+Test scenarios:
+
+valid OTP
+expired OTP
+invalid OTP
+Story 3 — Login & JWT Authentication
+Description
+
+Implement secure login using JWT tokens.
+
+Subtask: Configure Spring Security
+
+Description
+
+Add security configuration including:
+
+JWT filter
+authentication provider
+password encoder
+Subtask: Implement login endpoint
+
+Description
+
+Endpoint:
+
+POST /api/auth/login
+
+Returns:
+
+accessToken
+refreshToken
+Subtask: Implement JWT token generation
+
+Description
+
+Create utility class that generates JWT tokens containing:
+
+userId
+email
+role
+expiration
+Subtask: Implement JWT filter
+
+Description
+
+Intercept requests and validate JWT token for protected endpoints.
+
+Subtask: Test login security
+
+Description
+
+Verify:
+
+invalid credentials rejected
+JWT required for protected APIs
+Story 4 — OAuth Authentication
+Description
+
+Allow login using third-party providers.
+
+Subtasks
+
+Implement Google OAuth
+Implement GitHub OAuth
+Implement Facebook OAuth
+Link OAuth account to user profile
+Test OAuth login flows
+
+Each provider should authenticate the user and create a user account if it does not exist.
+
+Story 5 — Password Reset
+Description
+
+Allow users to reset forgotten passwords.
+
+Subtasks
+
+Create password reset token entity
+Generate reset token
+Send password reset email
+Implement password reset endpoint
+Test reset workflow
+
+Story 6 — Minor & Parent Approval System
+Description
+
+Users under 18 must obtain parental approval.
+
+Subtask: Detect minor accounts
+
+Description
+
+During registration calculate age using date of birth.
+
+If age < 18 → mark as minor.
+
+Subtask: Request parent approval
+
+Description
+
+Store parent email and send approval link.
+
+Subtask: Parent approval endpoint
+
+Description
+
+Endpoint:
+
+GET /api/minor/approve?token=XYZ
+
+Activates minor account.
+
+Subtask: Restrict minor actions
+
+Description
+
+Prevent minors from:
+
+initiating swaps
+joining volunteer sessions
+connecting with users
+
+until approval granted.
+
+Story 7 — Sprint Testing
+
+Subtasks
+
+Write authentication unit tests
+Test JWT authentication
+Test OAuth flows
+Test password reset flow
+Test parent approval flow
+Story 8 — Sprint Documentation
+
+Subtasks
+
+Document authentication architecture
+Document OAuth setup
+Update API documentation
+Update README
+SPRINT 3 — User Profiles & Skills
+
+Goal: implement profile management and skill system.
+
+Story 1 — User Profile Management
+Description
+
+Users must be able to manage their profile information.
+
+Subtasks
+
+Create profile API endpoints
+Update name
+Update profile photo
+Update bio
+Update location
+Delete account
+
+Subtask descriptions
+
+Update profile endpoint
+
+PUT /api/users/profile
+
+Allow updating user fields safely.
+
+Story 2 — Skill Categories
+Description
+
+Implement categories for skills.
+
+Subtasks
+
+Create SkillCategory entity
+
+id
+name
+description
+
+Create admin endpoints:
+
+POST /admin/skill-categories
+GET /skill-categories
+Story 3 — User Skills System
+Description
+
+Users can list skills they offer and skills they want to learn.
+
+Subtask: Create UserSkill entity
+
+Fields:
+
+id
+userId
+skillId
+type (offer / learn)
+level
+description
+Subtask: Add offered skill
+
+Endpoint:
+
+POST /api/skills/offered
+Subtask: Add skill to learn
+
+Endpoint:
+
+POST /api/skills/learn
+Subtask: Edit skill
+
+Allow updating skill level or description.
+
+Subtask: Delete skill
+
+Allow removing skill from profile.
+
+Story 4 — Browse Skills
+Description
+
+Allow users and guests to browse skills available on the platform.
+
+Subtasks
+
+Create skills listing API
+Implement pagination
+Allow filtering by category
+Allow filtering by location
+
+Endpoint example
+GET /api/skills?page=1&category=music&location=Beirut
+Story 5 — Search System
+Description
+
+Allow searching for skills using keywords.
+
+Subtasks
+
+Implement search query
+Add database indexes on skill names
+Create search endpoint
+
+Endpoint
+GET /api/search?query=guitar
+Story 6 — Public Profile View
+Description
+
+Users should be able to view other users’ public profiles.
+
+Subtasks
+
+Create public profile endpoint
+Return profile info
+Return offered skills
+Return rating score
+
+Story 7 — Testing
+
+Subtasks
+
+Test skill CRUD operations
+Test search functionality
+Test pagination
+Test filtering
+Story 8 — Documentation
+
+Subtasks
+
+Document profile APIs
+Document skill system
+Update architecture docs
+SPRINT 4 — Connections & Messaging
+
+Goal: build the social network layer.
+
+Story 1 — Connection Requests
+Description
+
+Users can connect with other users similar to LinkedIn.
+
+Subtasks
+
+Create Connection entity
+
+id
+requesterId
+receiverId
+status
+createdAt
+
+Statuses:
+
+pending
+accepted
+rejected
+Subtask: Send connection request
+
+Endpoint:
+
+POST /connections/request
+Subtask: Accept connection request
+
+Endpoint:
+
+POST /connections/accept
+Subtask: Reject connection request
+
+Endpoint:
+
+POST /connections/reject
+Subtask: Remove connection
+
+Endpoint:
+
+DELETE /connections/{id}
+Story 2 — Connection Recommendations
+Description
+
+Recommend connections based on:
+
+skills
+location
+mutual connections
+Subtasks
+
+Create recommendation query
+Add endpoint
+
+GET /connections/recommendations
+Story 3 — Chat System
+Description
+
+Users can chat when:
+
+swap accepted
+connection accepted
+Subtasks
+
+Create Conversation entity
+Create Message entity
+Implement WebSocket server
+Implement send message endpoint
+Implement message persistence
+
+Message fields
+id
+conversationId
+senderId
+content
+timestamp
+isRead
+Story 4 — Message Notifications
+Description
+
+Send push notifications for new messages.
+
+Subtasks
+
+Trigger push notification
+Store notification in database
+Update unread message count
+Story 5 — Chat History
+Description
+
+Users can view previous conversations.
+
+Subtasks
+
+Create conversation history endpoint
+Load messages with pagination
+
+Story 6 — Testing
+
+Subtasks
+
+Test connection flows
+Test chat messaging
+Test WebSocket connection
+Story 7 — Documentation
+
+Subtasks
+
+Document messaging architecture
+Document connection system
+Next
+
+If you want, I will generate Sprint 5–8 next, which includes the core startup features:
+
+Skill exchange marketplace
+Volunteer sessions
+Community feed
+Stories
+Comments & likes
+Share system
+
+Those sprints contain the largest part of the platform.
+
+Yes please
+
+Perfect — now we continue with the core product features.
+These are the features that make SawaSkills actually valuable as a startup product.
+
+These sprints will cover:
+
+skill exchange marketplace
+volunteer sessions
+community feed
+stories
+comments / likes / sharing
+
+Everything will include implementation + testing + documentation tasks.
+
+SPRINT 5 — Skill Exchange System
+
+Goal: implement the core skill trading feature.
+
+Story 1 — Exchange Request Cards
+Description
+
+Users should be able to create exchange request cards that advertise the skill they offer and the skill they want to learn.
+
+Subtask — Create ExchangeRequest entity
+
+Description
+
+Create entity:
+
+ExchangeRequest
+---------------
+id
+creatorId
+skillOfferedId
+skillRequestedId
+description
+location
+isFreeOffer
+createdAt
+Subtask — Create exchange request API
+
+Description
+
+Endpoint:
+
+POST /exchange/create
+
+Payload:
+
+skillOffered
+skillRequested
+description
+location
+isFreeOffer
+Subtask — Implement free offer option
+
+Description
+
+If isFreeOffer = true, the user does not require a skill in return.
+
+This allows volunteers or generous users to offer help freely.
+
+Subtask — Validate request creation
+
+Description
+
+Ensure:
+
+user owns offered skill
+skill categories exist
+duplicate requests avoided
+Subtask — Test exchange creation
+
+Description
+
+Verify:
+
+exchange request stored correctly
+free offer works
+invalid requests rejected
+Story 2 — Swap Requests
+Description
+
+Users can request to exchange skills based on exchange cards.
+
+Subtask — Create SwapRequest entity
+
+Fields:
+
+SwapRequest
+-----------
+id
+exchangeRequestId
+requesterId
+receiverId
+status
+createdAt
+
+Statuses:
+
+pending
+active
+completed
+cancelled
+rejected
+Subtask — Send swap request
+
+Endpoint:
+
+POST /swaps/request
+Subtask — Accept swap request
+
+Endpoint:
+
+POST /swaps/{id}/accept
+Subtask — Reject swap request
+
+Endpoint:
+
+POST /swaps/{id}/reject
+Subtask — Test swap workflow
+
+Test scenarios:
+
+pending → accepted
+pending → rejected
+accepted → active
+Story 3 — Session Scheduling
+Description
+
+Users must schedule a time to perform their skill exchange.
+
+Subtask — Create session schedule fields
+
+Add to SwapRequest:
+
+sessionDate
+sessionLocation
+sessionStatus
+Subtask — Schedule session API
+
+Endpoint:
+
+POST /swaps/{id}/schedule
+Subtask — Send session reminder
+
+Description
+
+24 hours before session time:
+
+push notification
+optional email reminder
+Subtask — Test session scheduling
+
+Verify:
+
+sessions saved correctly
+reminders sent
+Story 4 — Swap Completion
+Description
+
+Both users must confirm completion before rating becomes available.
+
+Subtask — Add completion fields
+
+Add to SwapRequest:
+
+completedByRequester
+completedByReceiver
+Subtask — Completion endpoint
+
+Endpoint:
+
+POST /swaps/{id}/complete
+Subtask — Enable rating after completion
+
+If both confirm completion → allow rating.
+
+Subtask — Test completion flow
+
+Verify:
+
+only completed swaps can be rated
+Story 5 — Swap Notifications
+Description
+
+Users receive notifications for swap activity.
+
+Subtasks
+
+Send swap request notification
+Send swap accepted notification
+Send session reminder notification
+
+Story 6 — Testing
+
+Tasks:
+
+Test swap creation
+Test swap acceptance
+Test swap completion
+Test scheduling
+Story 7 — Documentation
+
+Tasks:
+
+Document exchange system
+Update API docs
+Update system architecture
+SPRINT 6 — Volunteer Sessions
+
+Goal: allow volunteers to teach groups.
+
+Story 1 — Volunteer Application
+Description
+
+Users can apply to become verified volunteers.
+
+Subtask — Create VolunteerApplication entity
+VolunteerApplication
+--------------------
+id
+userId
+motivation
+status
+submittedAt
+reviewedAt
+
+Statuses:
+
+pending
+approved
+rejected
+Subtask — Apply for volunteer
+
+Endpoint:
+
+POST /volunteer/apply
+Subtask — Admin review application
+
+Admin endpoint:
+
+POST /admin/volunteer/{id}/approve
+Subtask — Test volunteer approval
+
+Verify:
+
+user receives volunteer badge
+Story 2 — Volunteer Sessions
+Description
+
+Volunteers can create learning sessions.
+
+Subtask — Create VolunteerSession entity
+VolunteerSession
+----------------
+id
+volunteerId
+title
+description
+date
+location
+createdAt
+Subtask — Create session endpoint
+POST /sessions/create
+Subtask — Join volunteer session
+
+Endpoint:
+
+POST /sessions/{id}/join
+Subtask — Add participants
+
+Create entity:
+
+VolunteerParticipant
+--------------------
+sessionId
+userId
+joinedAt
+Subtask — Test session joining
+
+Verify:
+
+users added correctly
+Story 3 — Session Announcements
+Description
+
+Volunteers can post updates to session participants.
+
+Subtasks
+
+Create announcement endpoint
+Send notification to participants
+
+Story 4 — Session Group Chat
+Description
+
+Each session automatically creates a group chat.
+
+Subtasks
+
+Create group conversation
+Add participants to chat
+Test group messaging
+
+Story 5 — Testing
+
+Tasks:
+
+test volunteer applications
+test session creation
+test group chat
+Story 6 — Documentation
+
+Tasks:
+
+document volunteer system
+update API docs
+SPRINT 7 — Community Feed
+
+Goal: implement the social content platform.
+
+Story 1 — Post System
+Description
+
+Users can create posts about skills.
+
+Subtask — Create Post entity
+Post
+----
+id
+authorId
+content
+imageUrl
+location
+createdAt
+updatedAt
+Subtask — Create post endpoint
+POST /posts
+Subtask — Edit post
+PUT /posts/{id}
+Subtask — Delete post
+DELETE /posts/{id}
+Story 2 — Feed System
+Description
+
+Implement two feed types.
+
+For You
+Following
+Subtasks
+
+Create feed API
+Implement feed sorting
+Implement pagination
+
+Story 3 — Post Likes
+Description
+
+Users can like posts.
+
+Subtask — Create PostLike entity
+PostLike
+--------
+id
+postId
+userId
+createdAt
+Subtask — Prevent duplicate likes
+
+Use unique constraint:
+
+(postId, userId)
+Story 4 — Comments
+Description
+
+Users can comment on posts.
+
+Subtask — Create Comment entity
+Comment
+-------
+id
+postId
+authorId
+content
+parentCommentId
+createdAt
+Subtask — Reply to comments
+
+Support nested comments using parentCommentId.
+
+Story 5 — Sharing
+Description
+
+Users can share posts.
+
+Subtasks
+
+Repost to feed
+Copy link
+Send to chat
+
+Story 6 — Testing
+
+Tasks:
+
+test post creation
+test comments
+test likes
+Story 7 — Documentation
+
+Tasks:
+
+document community feed
+update API docs
+SPRINT 8 — Stories Feature
+
+Goal: implement short-lived content.
+
+Story 1 — Story Creation
+Description
+
+Users can post stories.
+
+Subtask — Create Story entity
+Story
+-----
+id
+authorId
+imageUrl
+textContent
+createdAt
+expiresAt
+Subtask — Create story endpoint
+POST /stories
+Subtask — Auto expiration
+
+Stories expire after 24 hours.
+
+Story 2 — Story Views
+Description
+
+Track who viewed stories.
+
+Subtask — Create StoryView entity
+StoryView
+---------
+storyId
+viewerId
+viewedAt
+Subtask — View story viewers
+
+Allow author to see viewer list.
+
+Story 3 — Testing
+
+Tasks:
+
+test story creation
+test expiration
+test story views
+Story 4 — Documentation
+
+Tasks:
+
+document story system
+Next
+
+If you want, I can now generate the final sprints (9–15) which include:
+
+rating system
+reporting & moderation
+ML news engine
+notification system
+admin dashboard
+deployment & DevOps
+security hardening
+monitoring
+production launch
+
+These are the startup-engineering level sprints that most university projects never reach
+SPRINT 9 — Rating & Review System
+
+Goal: allow users to evaluate each other after swaps.
+
+Story 1 — Rating System
+Description
+
+After a swap is completed, users must be able to rate each other on a scale from 1–5 stars.
+
+Subtask — Create Rating entity
+
+Description
+
+Create entity:
+
+Rating
+------
+id
+swapId
+raterId
+ratedUserId
+stars
+createdAt
+
+Stars must be 1–5 only.
+
+Subtask — Create rating endpoint
+
+Description
+
+Endpoint:
+
+POST /ratings
+
+Payload:
+
+swapId
+stars
+Subtask — Validate rating rules
+
+Description
+
+Ensure:
+
+swap must be completed
+user cannot rate themselves
+rating allowed only once per swap
+Subtask — Test rating workflow
+
+Description
+
+Test scenarios:
+
+valid rating
+duplicate rating attempt
+rating before completion
+Story 2 — Reviews
+Description
+
+Users can optionally leave a written review along with their rating.
+
+Subtask — Create Review entity
+Review
+------
+id
+ratingId
+content
+createdAt
+Subtask — Create review endpoint
+POST /reviews
+Subtask — Test review creation
+
+Verify:
+
+reviews linked to rating
+content stored properly
+Story 3 — Review Reporting
+Description
+
+Users must be able to report inappropriate reviews.
+
+Subtask — Create ReviewReport entity
+ReviewReport
+------------
+id
+reviewId
+reporterId
+reason
+createdAt
+Subtask — Create report endpoint
+POST /reviews/{id}/report
+Subtask — Test reporting flow
+
+Verify review reports stored correctly.
+
+Story 4 — Testing
+
+Tasks:
+
+test rating rules
+test review creation
+test review reports
+Story 5 — Documentation
+
+Tasks:
+
+document rating APIs
+document review moderation
+SPRINT 10 — Reporting & Moderation
+
+Goal: keep the platform safe.
+
+Story 1 — Report System
+Description
+
+Users must be able to report problematic users, posts, or comments.
+
+Subtask — Create Report entity
+Report
+------
+id
+reporterId
+targetType
+targetId
+reason
+status
+createdAt
+
+Target types:
+
+user
+post
+comment
+review
+Subtask — Create report endpoint
+POST /reports
+Subtask — Test report system
+
+Verify reports saved correctly.
+
+Story 2 — Admin Moderation
+Description
+
+Admins must review and act on reports.
+
+Subtasks
+
+Create admin report dashboard API
+Implement report status update
+Allow admin to delete content
+
+Subtask — Delete reported content
+
+Admin endpoints:
+
+DELETE /admin/posts/{id}
+DELETE /admin/comments/{id}
+DELETE /admin/users/{id}
+Story 3 — User Moderation
+Description
+
+Admins must be able to suspend or ban users.
+
+Subtasks
+
+Create suspend endpoint
+Create ban endpoint
+Prevent banned users from logging in
+
+Story 4 — Testing
+
+Tasks:
+
+test reporting
+test admin moderation
+test banned user restrictions
+Story 5 — Documentation
+
+Tasks:
+
+document moderation system
+update admin API docs
+SPRINT 11 — ML News Engine
+
+Goal: integrate machine learning content.
+
+Story 1 — News Fetching
+Description
+
+System fetches skill-related news articles.
+
+Subtask — Create News entity
+News
+----
+id
+title
+content
+sourceUrl
+createdAt
+Subtask — Implement news fetch job
+
+Use scheduled task to fetch news daily.
+
+Story 2 — ML Classification
+Description
+
+Use ML microservice to classify news.
+
+Subtasks
+
+Send article text to ML service
+Receive predicted skill category
+Store classification result
+
+ML pipeline
+TF-IDF Vectorization
+Logistic Regression Classifier
+Story 3 — Publish News Posts
+Description
+
+ML-classified news automatically appears in community feed.
+
+Subtasks
+
+Convert news article to post
+Publish post in community feed
+
+Story 4 — Skill-based Notifications
+Description
+
+Notify users when news relates to their skills.
+
+Subtasks
+
+Find users with matching skills
+Send push notifications
+
+Story 5 — Testing
+
+Tasks:
+
+test ML classification endpoint
+test news publishing
+test notification targeting
+Story 6 — Documentation
+
+Tasks:
+
+document ML architecture
+document ML API
+SPRINT 12 — Notification System
+
+Goal: implement platform-wide notification infrastructure.
+
+Story 1 — Notification Entity
+Subtask — Create Notification entity
+Notification
+------------
+id
+userId
+type
+message
+isRead
+createdAt
+
+Types include:
+
+swap_request
+chat_message
+connection_request
+post_comment
+skill_news
+Story 2 — Notification Preferences
+Description
+
+Users control notification settings.
+
+Subtask — Create NotificationPreference entity
+NotificationPreference
+----------------------
+id
+userId
+notificationType
+enabled
+Story 3 — Notification APIs
+
+Subtasks:
+
+GET /notifications
+PUT /notifications/preferences
+Story 4 — Push Notifications
+
+Subtasks:
+
+integrate push notification service
+trigger push events
+Story 5 — Testing
+
+Tasks:
+
+test notification delivery
+test preferences
+Story 6 — Documentation
+
+Tasks:
+
+document notification system
+SPRINT 13 — Admin Dashboard
+
+Goal: build the React admin interface.
+
+Story 1 — Admin Authentication
+
+Subtasks:
+
+admin login page
+secure admin routes
+JWT validation
+Story 2 — User Management
+
+Subtasks:
+
+view users
+ban users
+suspend users
+Story 3 — Content Moderation
+
+Subtasks:
+
+view reports
+delete posts
+delete comments
+Story 4 — Analytics
+
+Subtasks:
+
+view swap statistics
+view active users
+view platform growth metrics
+Story 5 — Testing
+
+Tasks:
+
+test admin actions
+Story 6 — Documentation
+
+Tasks:
+
+document admin dashboard
+SPRINT 14 — DevOps & Deployment
+
+Goal: prepare the platform for production.
+
+Story 1 — Dockerization
+
+Subtasks:
+
+create backend Dockerfile
+create ML service Dockerfile
+create docker-compose file
+Story 2 — Database Hosting
+
+Subtasks:
+
+deploy PostgreSQL on Neon
+configure secure connection
+Story 3 — Backend Deployment
+
+Subtasks:
+
+deploy backend to Render or cloud provider
+configure environment variables
+Story 4 — CI/CD Pipeline
+
+Subtasks:
+
+GitHub Actions pipeline
+automatic testing
+build verification
+Story 5 — Monitoring
+
+Subtasks:
+
+error logging
+performance monitoring
+Story 6 — Testing
+
+Tasks:
+
+test production deployment
+SPRINT 15 — Final Security & Launch
+
+Goal: prepare the product for real users.
+
+Story 1 — Security Hardening
+
+Subtasks:
+
+rate limiting
+input validation
+SQL injection protection
+XSS protection
+Story 2 — Performance Optimization
+
+Subtasks:
+
+database indexing
+query optimization
+API caching
+Story 3 — Final QA Testing
+
+Subtasks:
+
+end-to-end testing
+mobile testing
+load testing
+Story 4 — Documentation
+
+Subtasks:
+
+final system documentation
+deployment documentation
+API documentation
+Story 5 — Launch Preparation
+
+Subtasks:
+
+prepare production environment
+final database backup
+release v1.0

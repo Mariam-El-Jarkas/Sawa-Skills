@@ -27,4 +27,8 @@ public class Report {
     @JoinColumn(name = "reporter_id")
     private User reporter;
 
+    @ManyToOne
+    @JoinColumn(name = "reported_post_id")
+    private Post reportedPost;
+
 }

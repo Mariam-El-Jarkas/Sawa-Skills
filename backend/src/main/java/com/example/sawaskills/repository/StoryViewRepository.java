@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface StoryViewRepository extends JpaRepository<StoryView, Long> {
+    boolean existsByStoryIdAndViewerId(Long storyId, Long viewerId);
 }

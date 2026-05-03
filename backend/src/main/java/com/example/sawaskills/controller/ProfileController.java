@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -120,6 +121,34 @@ public class ProfileController {
         String clientIp = request.getRemoteAddr();
         profileService.submitSupportRequest(userDetails.getUsername(), supportDto, clientIp);
         return ResponseEntity.ok(Map.of("message", "Recovery request submitted successfully. Our team will review it within 24 hours."));
+    }
+
+    // ── GET /api/profile/locations ────────────────────────────────────────────
+
+    @GetMapping("/locations")
+    public ResponseEntity<List<Map<String, Object>>> getLocations() {
+        return ResponseEntity.ok(profileService.getLocations());
+    }
+
+    // ── PATCH /api/profile/location ───────────────────────────────────────────
+
+    @PatchMapping("/location")
+    public ResponseEntity<Map<String, String>> updateLocation(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> body) {
+        String city = body.get("city");
+        if (city == null || city.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "city is required"));
+        }
+        profileService.updateLocation(userDetails.getUsername(), city.trim());
+        return ResponseEntity.ok(Map.of("message", "Location updated successfully"));
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Map<String, String>> deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        profileService.deleteAccount(userDetails.getUsername());
+        return ResponseEntity.ok(Map.of("message", "Account deleted successfully"));
     }
 
     @GetMapping("/diagnostic/check-table")

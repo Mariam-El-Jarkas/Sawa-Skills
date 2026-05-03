@@ -84,12 +84,18 @@ export default function TabsLayout() {
   // Fetch conversations on login to compute badge
   useEffect(() => {
     if (isLoggedIn) fetchConversations();
-    
+
     const sub = DeviceEventEmitter.addListener('chat_read_event', () => {
       fetchConversations();
     });
-    
-    return () => sub.remove();
+
+    // Poll every 30 s so the badge picks up new incoming messages while on other tabs
+    const poll = isLoggedIn ? setInterval(fetchConversations, 30_000) : null;
+
+    return () => {
+      sub.remove();
+      if (poll) clearInterval(poll);
+    };
   }, [isLoggedIn, fetchConversations]);
 
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);

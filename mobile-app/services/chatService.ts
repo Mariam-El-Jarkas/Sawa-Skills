@@ -2,15 +2,28 @@ import { apiGet, apiPost, apiPatch } from './api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface ParticipantInfo {
+  id: number;
+  name: string;
+  initials: string;
+  picture: string | null;
+  isAdmin: boolean;
+}
+
 export interface Conversation {
   id: number;
-  otherUserId: number;
+  otherUserId: number | null;  // null for group chats
   otherUserName: string;
   otherUserInitials: string;
   otherUserPicture: string | null;
   lastMessage: string | null;
   lastMessageTime: string | null;
   unreadCount: number;
+  isGroup: boolean;
+  adminId?: number;
+  everyoneCanMessage?: boolean;
+  participantsCount?: number;
+  participants?: ParticipantInfo[];
 }
 
 export interface ChatMessage {
@@ -43,5 +56,9 @@ export const chatService = {
 
   markRead(conversationId: number, token: string): Promise<void> {
     return apiPatch<void>(`/api/chat/conversations/${conversationId}/read`, {}, token);
+  },
+  
+  updatePermissions(conversationId: number, everyoneCanMessage: boolean, token: string): Promise<void> {
+    return apiPatch<void>(`/api/chat/conversations/${conversationId}/permissions`, { everyoneCanMessage }, token);
   },
 };

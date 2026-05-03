@@ -30,4 +30,8 @@ public class Notification {
     @JoinColumn(name="user_id")
     private User user;
 
+    private Long actorId;
+    private String actorName;
+    private Long referenceId;  // post or comment ID
+
 }

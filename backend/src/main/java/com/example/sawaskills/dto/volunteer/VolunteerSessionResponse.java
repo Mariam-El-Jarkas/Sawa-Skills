@@ -17,6 +17,9 @@ public class VolunteerSessionResponse {
     private String organizer;
     private String status;
     private int participants;
+    @com.fasterxml.jackson.annotation.JsonProperty("isJoined")
     private boolean isJoined;
+    @com.fasterxml.jackson.annotation.JsonProperty("isOrganizer")
+    private boolean isOrganizer;
     private Long groupChatId;
 }

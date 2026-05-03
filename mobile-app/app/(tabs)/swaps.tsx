@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Clock } from 'lucide-react-native';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native';
+import { useToast } from '../../components/modals/AppToast';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSwaps, filterSwaps, SwapFilter } from '../../hooks/useSwaps';
@@ -17,6 +18,7 @@ export default function SwapsScreen() {
   const router = useRouter();
   const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
   const { swaps, isLoading, error, fetchSwaps, acceptSwap, rejectSwap, markFinished, rateSwap } = useSwaps();
+  const { showToast } = useToast();
   const [filter, setFilter] = useState<SwapFilter>('all');
   const [ratingSwapId, setRatingSwapId] = useState<number | null>(null);
   const [isRating, setIsRating] = useState(false);
@@ -41,7 +43,7 @@ export default function SwapsScreen() {
     try {
       await acceptSwap(pendingAcceptId);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to accept swap');
+      showToast(e.message ?? 'Failed to accept swap', 'error');
     } finally {
       setPendingAcceptId(null);
     }
@@ -51,7 +53,7 @@ export default function SwapsScreen() {
     try {
       await rejectSwap(id);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to reject swap');
+      showToast(e.message ?? 'Failed to reject swap', 'error');
     }
   };
 
@@ -59,7 +61,7 @@ export default function SwapsScreen() {
     try {
       await markFinished(id);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to mark as finished');
+      showToast(e.message ?? 'Failed to mark as finished', 'error');
     }
   };
 
@@ -69,9 +71,9 @@ export default function SwapsScreen() {
     try {
       await rateSwap(ratingSwapId, { rating, comment: comment || undefined });
       setRatingSwapId(null);
-      Alert.alert('Success', 'Rating submitted successfully!');
+      showToast('Rating submitted successfully!', 'success');
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to submit rating');
+      showToast(e.message ?? 'Failed to submit rating', 'error');
     } finally {
       setIsRating(false);
     }
@@ -83,7 +85,7 @@ export default function SwapsScreen() {
       const conv = await chatService.startConversation(otherUserId, token);
       router.push(`/(tabs)/chat?openId=${conv.id}`);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to start conversation');
+      showToast(e.message ?? 'Failed to start conversation', 'error');
     }
   };
 

@@ -1,4 +1,4 @@
-import { apiGet } from './api';
+import { apiGet, apiPatch } from './api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -7,6 +7,9 @@ export interface HomeStats {
   swapCount?: number;
   connectionCount?: number;
   avgRating?: number;
+  userCity?: string | null;
+  pendingSwapCount?: number;
+  activeSwapCount?: number;
   // Guest
   totalSkills?: number;
   totalMembers?: number;
@@ -19,6 +22,11 @@ export interface TrendingSkill {
   swapCount: number;
 }
 
+export interface LocationItem {
+  id: number;
+  city: string;
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export const homeService = {
@@ -28,5 +36,13 @@ export const homeService = {
 
   getTrending(): Promise<TrendingSkill[]> {
     return apiGet<TrendingSkill[]>('/api/home/trending');
+  },
+
+  getLocations(token: string): Promise<LocationItem[]> {
+    return apiGet<LocationItem[]>('/api/profile/locations', token);
+  },
+
+  updateLocation(city: string, token: string): Promise<void> {
+    return apiPatch<void>('/api/profile/location', { city }, token);
   },
 };

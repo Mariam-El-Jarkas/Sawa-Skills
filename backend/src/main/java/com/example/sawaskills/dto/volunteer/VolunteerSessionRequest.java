@@ -13,5 +13,4 @@ public class VolunteerSessionRequest {
     private String title;
     private String description;
     private String sessionDate; // Simple ISO string or just date string
-    private boolean createGroupChat;
 }

@@ -36,12 +36,18 @@ public class HomeService {
         long swapCount = swapRequestRepository.countCompletedSwapsByUserId(user.getId());
         long connectionCount = connectionRepository.findAcceptedByUserId(user.getId()).size();
         double avgRating = reviewRepository.findAvgRatingByReviewedUserId(user.getId()).orElse(0.0);
+        long pendingSwaps = swapRequestRepository.countByStatusAndUserId("PENDING", user.getId());
+        long activeSwaps = swapRequestRepository.countByStatusAndUserId("ACTIVE", user.getId());
+        String userCity = user.getLocation() != null ? user.getLocation().getCity() : null;
 
         return HomeStatsResponse.builder()
                 .swapCount(swapCount)
                 .connectionCount(connectionCount)
                 .avgRating(Math.round(avgRating * 10.0) / 10.0)
                 .isAuthenticated(true)
+                .userCity(userCity)
+                .pendingSwapCount(pendingSwaps)
+                .activeSwapCount(activeSwaps)
                 .build();
     }
 

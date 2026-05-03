@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ChatService {
 
     private final ConversationRepository conversationRepository;
@@ -27,11 +28,11 @@ public class ChatService {
 
     public List<ConversationResponse> getConversations(String email) {
         User user = findUser(email);
+        // Sort by last activity (last message or creation time if no messages)
         return conversationRepository.findByParticipantId(user.getId())
                 .stream()
                 .map(c -> toConversationResponse(c, user))
-                .sorted(Comparator.comparing(ConversationResponse::getLastMessageTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp, Comparator.reverseOrder()))
                 .collect(Collectors.toList());
     }
 
@@ -83,6 +84,14 @@ public class ChatService {
         User user = findUser(email);
         Conversation conversation = getConversationForUser(conversationId, user.getId());
 
+        // Enforce group chat permissions
+        if (conversation.getName() != null && !conversation.isEveryoneCanMessage()) {
+            boolean isAdmin = conversation.getAdmin() != null && conversation.getAdmin().getId().equals(user.getId());
+            if (!isAdmin) {
+                throw new RuntimeException("Only the administrator can send messages in this group.");
+            }
+        }
+
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(user)
@@ -119,6 +128,56 @@ public class ChatService {
     }
 
     private ConversationResponse toConversationResponse(Conversation c, User currentUser) {
+        Optional<Message> lastMsg = messageRepository
+                .findTopByConversationIdOrderBySentAtDesc(c.getId());
+        long unread = messageRepository
+                .countByConversationIdAndReadFalseAndSenderIdNot(c.getId(), currentUser.getId());
+        String lastMessageText = lastMsg.map(Message::getContent).orElse(null);
+        String lastMessageTime = lastMsg.map(m -> formatTime(m.getSentAt())).orElse(null);
+        LocalDateTime lastTimestamp = lastMsg.map(Message::getSentAt).orElse(c.getCreatedAt());
+
+        // Group chat: conversation has a name (set when created with a volunteer session)
+        boolean isGroup = c.getName() != null && !c.getName().isEmpty();
+        if (isGroup) {
+            List<ConversationResponse.ParticipantInfo> participants = c.getParticipants().stream()
+                    .map(p -> ConversationResponse.ParticipantInfo.builder()
+                            .id(p.getId())
+                            .name(p.getName())
+                            .initials(getInitials(p.getName()))
+                            .picture(p.getProfilePicture())
+                            .isAdmin(c.getAdmin() != null && c.getAdmin().getId().equals(p.getId()))
+                            .build())
+                    .collect(Collectors.toList());
+
+            // If list is empty (e.g. sync issue), ensure admin is at least visible
+            if (participants.isEmpty() && c.getAdmin() != null) {
+                participants.add(ConversationResponse.ParticipantInfo.builder()
+                        .id(c.getAdmin().getId())
+                        .name(c.getAdmin().getName())
+                        .initials(getInitials(c.getAdmin().getName()))
+                        .isAdmin(true)
+                        .build());
+            }
+
+            return ConversationResponse.builder()
+                    .id(c.getId())
+                    .otherUserId(null)
+                    .otherUserName(c.getName())
+                    .otherUserInitials(getGroupInitials(c.getName()))
+                    .otherUserPicture(null)
+                    .isGroup(true)
+                    .lastMessage(lastMessageText)
+                    .lastMessageTime(lastMessageTime)
+                    .lastTimestamp(lastTimestamp)
+                    .unreadCount(unread)
+                    .adminId(c.getAdmin() != null ? c.getAdmin().getId() : null)
+                    .everyoneCanMessage(c.isEveryoneCanMessage())
+                    .participantsCount(c.getParticipants().size())
+                    .participants(participants)
+                    .build();
+        }
+
+        // 1:1 conversation
         User other = c.getParticipants().stream()
                 .filter(p -> !p.getId().equals(currentUser.getId()))
                 .findFirst()
@@ -130,26 +189,40 @@ public class ChatService {
                         .limit(2)
                         .collect(Collectors.joining());
 
-        Optional<Message> lastMsg = messageRepository
-                .findTopByConversationIdOrderBySentAtDesc(c.getId());
-
-        long unread = messageRepository
-                .countByConversationIdAndReadFalseAndSenderIdNot(c.getId(), currentUser.getId());
-
-        String lastMessageText = lastMsg.map(Message::getContent).orElse(null);
-        String lastMessageTime = lastMsg.map(m -> formatTime(m.getSentAt())).orElse(null);
-
         return ConversationResponse.builder()
                 .id(c.getId())
                 .otherUserId(other.getId())
                 .otherUserName(other.getName())
-                .otherUserInitials(initials)
+                .otherUserInitials(getInitials(other.getName()))
                 .otherUserPicture(other.getProfilePicture())
                 .isGroup(false)
                 .lastMessage(lastMessageText)
                 .lastMessageTime(lastMessageTime)
+                .lastTimestamp(lastTimestamp)
                 .unreadCount(unread)
                 .build();
+    }
+
+    private String getInitials(String name) {
+        if (name == null || name.isEmpty()) return "??";
+        return Arrays.stream(name.split(" "))
+                .map(w -> w.isEmpty() ? "" : String.valueOf(w.charAt(0)).toUpperCase())
+                .limit(2)
+                .collect(Collectors.joining());
+    }
+
+    @Transactional
+    public void updatePermissions(String email, Long conversationId, boolean everyoneCanMessage) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+
+        boolean isAdmin = conversation.getAdmin() != null && conversation.getAdmin().getId().equals(user.getId());
+        if (!isAdmin) {
+            throw new RuntimeException("Only the administrator can change group permissions");
+        }
+
+        conversation.setEveryoneCanMessage(everyoneCanMessage);
+        conversationRepository.save(conversation);
     }
 
     private MessageResponse toMessageResponse(Message m, Long currentUserId) {

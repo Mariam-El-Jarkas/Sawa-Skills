@@ -23,7 +23,7 @@ const TOKEN_KEY = 'auth_token';
 export const getStoredToken = async (): Promise<string | null> => {
   try {
     if (Platform.OS !== 'web') return await SecureStore.getItemAsync(TOKEN_KEY);
-    return null;
+    return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }

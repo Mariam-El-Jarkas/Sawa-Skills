@@ -21,6 +21,14 @@ public class Post {
     private String content;
 
     private String imageUrl;
+    private String documentUrl;
+    
+    private String pollQuestion;
+    private String pollOptions; // Comma separated options
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private PostVisibility visibility = PostVisibility.EVERYONE;
 
     private LocalDateTime createdAt;
 
@@ -28,4 +36,7 @@ public class Post {
     @JoinColumn(name="author_id")
     private User author;
 
+    public enum PostVisibility {
+        EVERYONE, FOLLOWERS
+    }
 }

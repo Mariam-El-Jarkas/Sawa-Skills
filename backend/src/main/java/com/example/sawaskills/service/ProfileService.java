@@ -36,6 +36,7 @@ public class ProfileService {
     private final ConnectionRepository connectionRepository;
     private final SupportRequestRepository supportRequestRepository;
     private final VerificationRequestRepository verificationRequestRepository;
+    private final LocationRepository locationRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
@@ -101,7 +102,7 @@ public class ProfileService {
                 })
                 .collect(Collectors.toList());
 
-        String location = user.getLocation() != null ? user.getLocation().toString() : null;
+        String location = user.getLocation() != null ? user.getLocation().getCity() : null;
 
         return ProfileResponse.builder()
                 .id(user.getId())
@@ -447,9 +448,80 @@ public class ProfileService {
                 .avgRating(Math.round(avgRating * 10.0) / 10.0)
                 .reviewCount(reviewCount)
                 .swapCount(swapCount)
+                .isAgeVerified(isAdultVerified(user))
+                .isMinorVerified(isMinorVerified(user))
                 .isVolunteer(isVolunteer(user))
                 .offeredSkills(offeredSkills)
                 .wantedSkills(wantedSkills)
                 .build();
+    }
+
+    // ── Location management ───────────────────────────────────────────────────
+
+    public List<java.util.Map<String, Object>> getLocations() {
+        return locationRepository.findAll().stream()
+                .map(l -> {
+                    java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", l.getId());
+                    m.put("city", l.getCity());
+                    return m;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void updateLocation(String email, String city) {
+        User user = findUser(email);
+        Location loc = locationRepository.findByCity(city)
+                .orElseGet(() -> locationRepository.save(
+                        Location.builder().city(city).region("Lebanon").build()
+                ));
+        user.setLocation(loc);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void deleteAccount(String email) {
+        User user = findUser(email);
+        Long uid = user.getId();
+
+        // Comprehensive Cleanup using Native Queries to handle all FK constraints
+        entityManager.createNativeQuery("DELETE FROM user_skills WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM verification_requests WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM notifications WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM notification_preferences WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Swaps & Exchanges
+        entityManager.createNativeQuery("DELETE FROM swap_requests WHERE requester_id = :uid OR receiver_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM exchange_listings WHERE owner_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Connections
+        entityManager.createNativeQuery("DELETE FROM connections WHERE requester_id = :uid OR receiver_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Volunteer System
+        entityManager.createNativeQuery("DELETE FROM volunteer_participants WHERE participant_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM volunteer_sessions WHERE organizer_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM volunteer_applications WHERE applicant_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Chat & Messages
+        entityManager.createNativeQuery("DELETE FROM messages WHERE sender_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM conversation_participants WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("UPDATE conversations SET admin_id = NULL WHERE admin_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Social Features
+        entityManager.createNativeQuery("DELETE FROM post_likes WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM post_shares WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM comment_likes WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM comments WHERE author_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM posts WHERE author_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM stories WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Security & Misc
+        entityManager.createNativeQuery("DELETE FROM auth_providers WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM password_reset_tokens WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM support_requests WHERE requester_id = :uid").setParameter("uid", uid).executeUpdate();
+        
+        // Finally remove the user
+        userRepository.delete(user);
     }
 }

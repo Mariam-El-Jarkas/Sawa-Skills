@@ -16,6 +16,9 @@ public interface SwapRequestRepository extends JpaRepository<SwapRequest, Long> 
     @Query("SELECT COUNT(s) FROM SwapRequest s WHERE (s.requester.id = :userId OR s.receiver.id = :userId) AND s.status = 'COMPLETED'")
     long countCompletedSwapsByUserId(@Param("userId") Long userId);
 
+    @Query("SELECT COUNT(s) FROM SwapRequest s WHERE (s.requester.id = :userId OR s.receiver.id = :userId) AND UPPER(s.status) = UPPER(:status)")
+    long countByStatusAndUserId(@Param("status") String status, @Param("userId") Long userId);
+
     @Query("SELECT s FROM SwapRequest s WHERE (s.requester.id = :userId OR s.receiver.id = :userId) ORDER BY s.createdAt DESC")
     List<SwapRequest> findAllByUserId(@Param("userId") Long userId, Pageable pageable);
 

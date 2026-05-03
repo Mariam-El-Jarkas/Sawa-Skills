@@ -24,6 +24,7 @@ public class SwapsService {
     private final ReviewRepository reviewRepository;
     private final ExchangeListingRepository exchangeListingRepository;
     private final RateLimiterService rateLimiterService;
+    private final VerificationRequestRepository verificationRequestRepository;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final int MAX_SWAPS_PER_REQUEST = 100;
@@ -41,6 +42,15 @@ public class SwapsService {
 
         User receiver = userRepository.findById(request.getReceiverId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        boolean isAdult = verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(requester.getId(), "ADULT")
+                .map(req -> "APPROVED".equals(req.getStatus())).orElse(false);
+        boolean isMinor = verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(requester.getId(), "MINOR")
+                .map(req -> "APPROVED".equals(req.getStatus())).orElse(false);
+
+        if (!isAdult && !isMinor) {
+            throw new RuntimeException("You must complete verification (Adult or Minor approval) to send a swap request");
+        }
 
         if (swapRequestRepository.existsActiveSwapBetween(requester.getId(), receiver.getId())) {
             throw new RuntimeException("You already have an active or pending swap with this user");

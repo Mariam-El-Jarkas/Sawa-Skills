@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Modal, StyleSheet, Image, Alert, ActivityIndicator,
+  Modal, StyleSheet, Image, ActivityIndicator,
 } from 'react-native';
+import { useToast } from '../../components/modals/AppToast';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -11,7 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
-import { profileService, PublicProfile } from '../../services/profileService';
+import { ConfirmModal } from '../../components/modals/ConfirmModal';
 import { Toggle } from '../../components/Toggle';
 import { validateLebanesePhone } from '../../utils/validation';
 import { C, G } from '../../components/theme';
@@ -24,8 +25,9 @@ export default function ProfileScreen() {
     profile, loading, refresh,
     updateBio, updateContact, uploadPicture, deleteProfilePicture,
     applyForVolunteer, requestEmailChange, verifyCurrentEmail, confirmEmailChange,
-    submitSupportRequest
+    submitSupportRequest, deleteAccount
   } = useProfile(userIdParam);
+  const { showToast } = useToast();
 
   const isOwnProfile = !userIdParam || String(userIdParam) === String(user?.id);
 
@@ -79,6 +81,10 @@ export default function ProfileScreen() {
   // ── Notification / privacy toggles (local for now) ───────────────────────
   const [notif, setNotif] = useState({ swapRequests: true, messages: true, skillNews: true });
   const [privacy, setPrivacy] = useState({ publicProfile: true, allowMessages: true });
+  
+  // ── Delete Account Modal ──────────────────────────────────────────────────
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingBusy, setDeletingBusy] = useState(false);
 
   const myConnections = profile?.connections || [];
 
@@ -104,7 +110,7 @@ export default function ProfileScreen() {
   const handlePickPicture = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      showToast('Please allow access to your photo library', 'error');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -127,7 +133,7 @@ export default function ProfileScreen() {
       setShowPreviewModal(false);
       setPreviewImage(null);
     } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
+      showToast(e.message ?? 'Upload failed', 'error');
     } finally {
       setUploadingPic(false);
     }
@@ -139,7 +145,7 @@ export default function ProfileScreen() {
       await updateBio(bioInput.trim());
       setIsEditingBio(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showToast(e.message ?? 'Failed to save bio', 'error');
     } finally {
       setSavingBio(false);
     }
@@ -228,7 +234,7 @@ export default function ProfileScreen() {
   const handleProofPick = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      showToast('Please allow access to your photo library', 'error');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -245,7 +251,7 @@ export default function ProfileScreen() {
   const handleVerifyImagePick = async (field: 'idFront' | 'idBack' | 'selfie') => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      showToast('Please allow access to your photo library', 'error');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -301,6 +307,21 @@ export default function ProfileScreen() {
 
 
 
+  const handleDeleteAccount = async () => {
+    setDeletingBusy(true);
+    try {
+      await deleteAccount();
+      showToast('Account deleted successfully', 'success');
+      setShowDeleteModal(false);
+      logout();
+      router.replace('/');
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to delete account', 'error');
+    } finally {
+      setDeletingBusy(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render Logic
   // ─────────────────────────────────────────────────────────────────────────
@@ -327,7 +348,7 @@ export default function ProfileScreen() {
                     <TouchableOpacity style={s.connActionBtn} onPress={() => { setView('main'); router.push('/chat'); }}>
                       <MessageCircle size={18} color={C.violet600} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.connActionBtn} onPress={() => { Alert.alert('Info', 'Removing connections not yet implemented.'); }}>
+                    <TouchableOpacity style={s.connActionBtn} onPress={() => { showToast('Removing connections not yet implemented.', 'info'); }}>
                       <UserMinus size={18} color={C.red600} />
                     </TouchableOpacity>
                   </View>
@@ -401,7 +422,7 @@ export default function ProfileScreen() {
                 <LogOut size={18} color={C.violet600} />
                 <Text style={s.settingsActionTxt}>Logout</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.settingsActionDanger}>
+              <TouchableOpacity style={s.settingsActionDanger} onPress={() => setShowDeleteModal(true)}>
                 <Trash2 size={18} color={C.red600} />
                 <Text style={s.settingsActionDangerTxt}>Delete Account</Text>
               </TouchableOpacity>
@@ -446,18 +467,17 @@ export default function ProfileScreen() {
               <View style={s.profileInfo}>
                 <Text style={s.profileName}>{profile?.name || user?.name || '—'}</Text>
                   <View style={s.badgeRow}>
-                    {profile?.isAgeVerified && (
+                    {profile?.isAgeVerified ? (
                       <View style={s.verifiedBadge}>
                         <CheckCircle2 size={12} color={C.white} />
                         <Text style={s.verifiedTxt}>Verified 18+</Text>
                       </View>
-                    )}
-                    {profile?.isMinorVerified && (
+                    ) : profile?.isMinorVerified ? (
                       <View style={[s.verifiedBadge, { backgroundColor: 'rgba(16,185,129,0.3)' }]}>
                         <CheckCircle2 size={12} color={C.white} />
                         <Text style={s.verifiedTxt}>Minor Verified</Text>
                       </View>
-                    )}
+                    ) : null}
                     {profile?.isVolunteer && (
                       <View style={[s.verifiedBadge, { backgroundColor: 'rgba(245,158,11,0.3)' }]}>
                         <Award size={12} color={C.white} />
@@ -483,9 +503,6 @@ export default function ProfileScreen() {
           <View style={s.bannerMeta}>
             {profile?.location && (
               <View style={s.metaItem}><MapPin size={14} color={C.white} /><Text style={s.metaTxt}>{profile.location}</Text></View>
-            )}
-            {profile?.volunteerStatus === 'APPROVED' && (
-              <View style={s.metaItem}><Award size={14} color={C.yellow400} /><Text style={s.metaTxt}>Volunteer</Text></View>
             )}
           </View>
         </LinearGradient>
@@ -526,17 +543,17 @@ export default function ProfileScreen() {
 
           {/* ── Verification banner ── */}
           {isOwnProfile && ((!profile?.isAgeVerified && !profile?.isMinorVerified) || !profile?.isVolunteer) && (
-            <View style={[s.verifyBanner, profile?.ageVerificationStatus === 'PENDING' && { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' }]}>
+            <View style={[s.verifyBanner, profile?.ageVerificationStatus?.startsWith('PENDING') && { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' }]}>
               <View style={s.verifyBannerContent}>
-                <Text style={[s.verifyBannerTitle, profile?.ageVerificationStatus === 'PENDING' && { color: '#B45309' }]}>
-                  {profile?.ageVerificationStatus === 'PENDING' ? 'Verification Pending' : 'Verify Your Account'}
+                <Text style={[s.verifyBannerTitle, profile?.ageVerificationStatus?.startsWith('PENDING') && { color: '#B45309' }]}>
+                  {profile?.ageVerificationStatus?.startsWith('PENDING') ? 'Verification Pending' : 'Verify Your Account'}
                 </Text>
-                <Text style={[s.verifyBannerSub, profile?.ageVerificationStatus === 'PENDING' && { color: '#D97706' }]}>
-                  {profile?.ageVerificationStatus === 'PENDING' 
+                <Text style={[s.verifyBannerSub, profile?.ageVerificationStatus?.startsWith('PENDING') && { color: '#D97706' }]}>
+                  {profile?.ageVerificationStatus?.startsWith('PENDING') 
                     ? 'Our team is reviewing your documents. Please check back later.' 
                     : 'Get a badge and unlock full features.'}
                 </Text>
-                {profile?.ageVerificationStatus !== 'PENDING' && (
+                {(!profile?.ageVerificationStatus?.startsWith('PENDING') || (!profile?.isVolunteer && profile?.volunteerStatus !== 'PENDING' && (profile?.isAgeVerified || profile?.isMinorVerified))) && (
                   <TouchableOpacity
                     style={s.verifyBannerBtn}
                     onPress={() => { setVerifyStep(0); setVerifyType(null); setShowVerifyModal(true); }}
@@ -545,7 +562,7 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              {profile?.ageVerificationStatus === 'PENDING' ? (
+              {profile?.ageVerificationStatus?.startsWith('PENDING') ? (
                 <Clock size={64} color="rgba(217,119,6,0.1)" style={{ position: 'absolute', right: -8, bottom: -8 }} />
               ) : (
                 <ShieldCheck size={64} color="rgba(124,58,237,0.15)" style={{ position: 'absolute', right: -8, bottom: -8 }} />
@@ -616,30 +633,34 @@ export default function ProfileScreen() {
           ))}
 
           {/* ── Reviews ── */}
-          <View>
+          <View style={{ marginBottom: 40 }}>
             <Text style={s.sectionTitle}>Reviews</Text>
             {loading && !profile ? (
               <ActivityIndicator color={C.violet600} />
             ) : profile?.reviews?.length ? (
-              profile.reviews.map(r => (
-                <View key={r.id} style={s.reviewCard}>
-                  <View style={s.reviewHdr}>
-                    <View style={s.reviewAvatar}>
-                      <Text style={s.reviewAvatarTxt}>{r.reviewerName[0]}</Text>
-                    </View>
-                    <View style={s.reviewInfo}>
-                      <Text style={s.reviewUser}>{r.reviewerName}</Text>
-                      <View style={s.starsRow}>
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <Star key={i} size={12} color={i <= r.rating ? C.yellow400 : C.gray200} fill={i <= r.rating ? C.yellow400 : 'transparent'} />
-                        ))}
+              <View style={{ maxHeight: 210, overflow: 'hidden' }}>
+                <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingRight: 4 }}>
+                  {profile.reviews.map(r => (
+                    <View key={r.id} style={s.reviewCard}>
+                      <View style={s.reviewHdr}>
+                        <View style={s.reviewAvatar}>
+                          <Text style={s.reviewAvatarTxt}>{r.reviewerName[0]}</Text>
+                        </View>
+                        <View style={s.reviewInfo}>
+                          <Text style={s.reviewUser}>{r.reviewerName}</Text>
+                          <View style={s.starsRow}>
+                            {[1, 2, 3, 4, 5].map(i => (
+                              <Star key={i} size={12} color={i <= r.rating ? C.yellow400 : C.gray200} fill={i <= r.rating ? C.yellow400 : 'transparent'} />
+                            ))}
+                          </View>
+                        </View>
+                        <Text style={s.reviewDate}>{new Date(r.createdAt).toLocaleDateString()}</Text>
                       </View>
+                      {r.comment ? <Text style={s.reviewTxt}>{r.comment}</Text> : null}
                     </View>
-                    <Text style={s.reviewDate}>{new Date(r.createdAt).toLocaleDateString()}</Text>
-                  </View>
-                  {r.comment ? <Text style={s.reviewTxt}>{r.comment}</Text> : null}
-                </View>
-              ))
+                  ))}
+                </ScrollView>
+              </View>
             ) : (
               <Text style={s.emptyTxt}>No reviews yet.</Text>
             )}
@@ -676,15 +697,36 @@ export default function ProfileScreen() {
               <View style={s.verifyContent}>
                 <Text style={s.verifyChooseTitle}>Choose Verification Type</Text>
                 {([
-                  { type: 'adult'     as const, title: 'Adult Verification',     sub: '18 years or older',               Icon: ShieldCheck, hide: profile?.isAgeVerified || profile?.isMinorVerified },
-                  { type: 'minor'     as const, title: 'Minor Verification',     sub: 'Under 18 — parental approval',     Icon: Users, hide: profile?.isAgeVerified || profile?.isMinorVerified },
-                  { type: 'volunteer' as const, title: 'Volunteer Verification', sub: 'Apply to join our volunteer team', Icon: Award, hide: profile?.isVolunteer },
-                ] as const).filter(opt => !opt.hide).map(({ type, title, sub, Icon }) => (
-                  <TouchableOpacity key={type} style={s.verifyChoice} onPress={() => { setVerifyType(type); setVerifyStep(1); }}>
-                    <View style={s.verifyChoiceIcon}><Icon size={24} color={C.violet600} /></View>
+                  { type: 'adult'     as const, title: 'Adult Verification',     sub: '18 years or older',               Icon: ShieldCheck, hide: profile?.isAgeVerified || profile?.isMinorVerified, pending: profile?.ageVerificationStatus?.startsWith('PENDING') },
+                  { type: 'minor'     as const, title: 'Minor Verification',     sub: 'Under 18 — parental approval',     Icon: Users, hide: profile?.isAgeVerified || profile?.isMinorVerified, pending: profile?.ageVerificationStatus?.startsWith('PENDING') },
+                  { 
+                    type: 'volunteer' as const, 
+                    title: 'Volunteer Verification', 
+                    sub: 'Apply to join our volunteer team', 
+                    Icon: Award, 
+                    hide: !!profile?.isVolunteer, 
+                    pending: profile?.volunteerStatus === 'PENDING',
+                    locked: !profile?.isAgeVerified && !profile?.isMinorVerified
+                  },
+                ] as const).filter(opt => !opt.hide).map(({ type, title, sub, Icon, pending, locked }) => (
+                  <TouchableOpacity 
+                    key={type} 
+                    style={[s.verifyChoice, (pending || locked) && { opacity: 0.5, backgroundColor: C.gray50 }]} 
+                    disabled={pending || locked}
+                    onPress={() => { 
+                      if (locked) {
+                        showToast('You must complete Adult or Minor Verification first.', 'info');
+                        return;
+                      }
+                      setVerifyType(type); setVerifyStep(1); 
+                    }}
+                  >
+                    <View style={[s.verifyChoiceIcon, (pending || locked) && { backgroundColor: C.gray200 }]}><Icon size={24} color={(pending || locked) ? C.gray400 : C.violet600} /></View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.verifyChoiceTitle}>{title}</Text>
-                      <Text style={s.verifyChoiceSub}>{sub}</Text>
+                      <Text style={[s.verifyChoiceTitle, (pending || locked) && { color: C.gray500 }]}>{title}</Text>
+                      <Text style={s.verifyChoiceSub}>
+                        {locked ? 'Requires Identity Verification' : pending ? 'Pending Review...' : sub}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -758,7 +800,7 @@ export default function ProfileScreen() {
 
             {verifyType === 'adult' && verifyStep === 4 && (
               <View style={[s.verifyContent, { alignItems: 'center' }]}>
-                {profile?.ageVerificationStatus === 'PENDING' ? (
+                {profile?.ageVerificationStatus?.startsWith('PENDING') ? (
                   <>
                     <View style={[s.successIcon, { backgroundColor: '#FEF3C7' }]}><Clock size={40} color="#D97706" /></View>
                     <Text style={s.verifyChooseTitle}>Request Already Pending</Text>
@@ -776,7 +818,7 @@ export default function ProfileScreen() {
                    disabled={!verifyImages.idFront || !verifyImages.selfie || isVerifying}
                    onPress={async () => {
                      // If we are already pending, just close the modal
-                     if (profile?.ageVerificationStatus === 'PENDING') {
+                     if (profile?.ageVerificationStatus?.startsWith('PENDING')) {
                        setShowVerifyModal(false);
                        return;
                      }
@@ -802,13 +844,12 @@ export default function ProfileScreen() {
                          setShowVerifyModal(false); 
                          // Refresh after closing for smoothness
                          setTimeout(refresh, 500);
-                       } else {
-                         Alert.alert('Submission Failed', 'Please ensure all images are clear and retry.');
-                       }
-                     } catch (e) {
-                       console.error('Final verification error:', e);
-                       Alert.alert('Submission Error', 'Could not connect to the server.');
-                     } finally {
+                        } else {
+                          showToast('Submission Failed. Please check your images.', 'error');
+                        }
+                      } catch (e) {
+                        showToast('Submission Error. Could not connect to the server.', 'error');
+                      } finally {
                        setIsVerifying(false);
                      }
                    }}
@@ -833,10 +874,18 @@ export default function ProfileScreen() {
                     style={[s.verifyNext, (!parentEmail.includes('@') || isVerifying) && s.verifyNextDisabled]}
                     disabled={!parentEmail.includes('@') || isVerifying}
                     onPress={async () => {
+                      if (profile?.ageVerificationStatus?.startsWith('PENDING')) {
+                         showToast('You already have a minor verification pending.', 'info');
+                         return;
+                      }
                       setIsVerifying(true);
                       const ok = await verifyMinor(parentEmail);
                       setIsVerifying(false);
-                      if (ok) setVerifyStep(2);
+                      if (ok) {
+                         setVerifyStep(2);
+                      } else {
+                         showToast('Failed to send request. You may already have a pending review.', 'error');
+                      }
                     }}
                   >
                     <Text style={s.verifyNextTxt}>{isVerifying ? 'Sending...' : 'Send Approval'}</Text>
@@ -919,7 +968,7 @@ export default function ProfileScreen() {
                         disabled={applyingVolunteer}
                         onPress={async () => {
                           if (!volApp.why || !volApp.experience || !volApp.skills) {
-                            Alert.alert('Missing Fields', 'Please fill in all the application fields.');
+                            showToast('Please fill in all application fields', 'error');
                             return;
                           }
                           setApplyingVolunteer(true);
@@ -927,7 +976,7 @@ export default function ProfileScreen() {
                             await applyForVolunteer(volApp.why, volApp.experience, volApp.skills);
                             setVerifyStep(2);
                           } catch (e: any) {
-                            Alert.alert('Error', e.message);
+                            showToast(e.message ?? 'Submission error', 'error');
                           } finally {
                             setApplyingVolunteer(false);
                           }
@@ -990,7 +1039,7 @@ export default function ProfileScreen() {
               {profile?.profilePicture && (
                 <TouchableOpacity style={[s.verifyNext, { backgroundColor: C.violet100 }]} onPress={async () => {
                   setShowPicOptions(false);
-                  try { await deleteProfilePicture(); } catch(e:any) { Alert.alert('Error', e.message); }
+                  try { await deleteProfilePicture(); showToast('Picture removed', 'success'); } catch(e:any) { showToast(e.message, 'error'); }
                 }}>
                   <Text style={[s.verifyNextTxt, { color: C.violet600 }]}>Remove Current Image</Text>
                 </TouchableOpacity>
@@ -1264,7 +1313,7 @@ export default function ProfileScreen() {
                       maxLength={6}
                       placeholderTextColor={C.gray200}
                     />
-                    <TouchableOpacity style={s.verifyNext} onPress={() => { Alert.alert('Success', 'Recovery successful (UI Demo only)'); setShowContactModal(false); }}>
+                    <TouchableOpacity style={s.verifyNext} onPress={() => { showToast('Recovery successful (UI Demo)', 'success'); setShowContactModal(false); }}>
                       <Text style={s.verifyNextTxt}>Verify Phone</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setRecoveryStep('phone_input')} style={{ alignSelf: 'center' }}>
@@ -1358,6 +1407,19 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Confirm Delete Account Modal ── */}
+      <ConfirmModal
+        isVisible={showDeleteModal}
+        title="Delete Account"
+        message="Are you completely sure you want to delete your account? This action is permanent and all your swaps, sessions, and messages will be permanently lost."
+        confirmText="Delete My Account"
+        cancelText="Cancel"
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setShowDeleteModal(false)}
+        destructive={true}
+        requireConfirmationText="DELETE"
+      />
     </View>
   );
 }

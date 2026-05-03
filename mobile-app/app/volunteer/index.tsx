@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, Modal, StyleSheet, Alert, DeviceEventEmitter } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet } from 'react-native';
+import { useToast } from '../../components/modals/AppToast';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Heart, Calendar, Users, X, CheckCircle, ArrowLeft, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -8,7 +9,6 @@ import { useProfile } from '../../hooks/useProfile';
 import { C, G } from '../../components/theme';
 
 import { volunteerService, VolunteerSession } from '../../services/volunteerService';
-import { Toggle } from '../../components/Toggle';
 
 export default function VolunteerScreen() {
   const router = useRouter();
@@ -16,19 +16,18 @@ export default function VolunteerScreen() {
   const { profile, applyForVolunteer } = useProfile();
   
   const [showApplicationForm, setShowApplicationForm] = useState(false);
-  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(false);
-  const [sessionSubmitted, setSessionSubmitted] = useState(false);
+  const [confirmingOppId, setConfirmingOppId] = useState<number | null>(null);
+  const { showToast } = useToast();
   
   const [appData, setAppData] = useState({ why: '', experience: '', skills: '' });
-  const [sessionData, setSessionData] = useState({ 
-    name: '', 
-    description: '', 
-    skills: '', 
-    date: '', 
-    time: '', 
+  const [sessionData, setSessionData] = useState({
+    name: '',
+    description: '',
+    skills: '',
+    date: '',
+    time: '',
     location: '',
-    createGroupChat: true 
   });
 
   const [opportunities, setOpportunities] = useState<VolunteerSession[]>([]);
@@ -45,63 +44,66 @@ export default function VolunteerScreen() {
     loadData();
   }, [isLoggedIn, token]);
 
-  const handleJoin = async (session: VolunteerSession) => {
+  const handleJoin = (session: VolunteerSession) => {
     if (!isLoggedIn || !token) { setShowLoginPrompt(true); return; }
-    
+    if (session.isOrganizer) {
+      showToast('You cannot join your own session', 'error');
+      return;
+    }
+    if (session.isJoined) return;
+    setConfirmingOppId(session.id);
+  };
+
+  const confirmJoin = async (session: VolunteerSession) => {
     try {
-      await volunteerService.joinSession(session.id, token);
-      
-      // Update local state to show "Joined" immediately
-      setOpportunities(prev => prev.map(o => 
+      await volunteerService.joinSession(session.id, token!);
+      setOpportunities(prev => prev.map(o =>
         o.id === session.id ? { ...o, isJoined: true, participants: o.participants + 1 } : o
       ));
-      
-      Alert.alert('Success', 'You have joined the session!', [
-        { 
-          text: session.groupChatId ? 'Go to Chat' : 'OK', 
-          onPress: () => {
-            if (session.groupChatId) {
-              router.push({ pathname: '/chat', params: { openId: session.groupChatId } });
-            }
-          }
-        }
-      ]);
+      setConfirmingOppId(null);
+      showToast('Joined Successfully!', 'success');
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to join session');
+      setConfirmingOppId(null);
+      showToast(e.message ?? 'Failed to join session', 'error');
     }
   };
 
   const handleAppSubmit = async () => {
     if (!appData.why || !appData.experience || !appData.skills) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showToast('Please fill in all fields', 'error');
       return;
     }
     try {
       await applyForVolunteer(appData.why, appData.experience, appData.skills);
-      setApplicationSubmitted(true);
+      showToast('Application Submitted!', 'success');
       setShowApplicationForm(false);
-      setTimeout(() => setApplicationSubmitted(false), 3000);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showToast(e.message ?? 'Application failed', 'error');
     }
   };
 
   const handleSessionSubmit = async () => {
     if (!token) { setShowLoginPrompt(true); return; }
     if (!sessionData.name || !sessionData.date) {
-      Alert.alert('Error', 'Name and Date are required');
+      showToast('Name and Date are required', 'error');
       return;
     }
     try {
       const created = await volunteerService.createSession(sessionData, token);
       setMySessions(prev => [created, ...prev]);
       setOpportunities(prev => [created, ...prev]);
-      setSessionSubmitted(true);
+      showToast('Session Created!', 'success');
       setShowSessionForm(false);
-      setSessionData({ name: '', description: '', skills: '', date: '', time: '', location: '', createGroupChat: true });
-      setTimeout(() => setSessionSubmitted(false), 3000);
+      setSessionData({ name: '', description: '', skills: '', date: '', time: '', location: '' });
+      
+      // Navigate to chat immediately
+      if (created.groupChatId) {
+        setTimeout(() => {
+          router.push({ pathname: '/chat', params: { openId: created.groupChatId.toString() } });
+        }, 500);
+      }
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to create session');
+      showToast(e.message ?? 'Failed to create session', 'error');
     }
   };
 
@@ -150,14 +152,36 @@ export default function VolunteerScreen() {
                       <View style={s.oppMetaItem}><Calendar size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{opp.date}</Text></View>
                     </View>
                     <View style={s.oppFooter}>
-                      <TouchableOpacity
-                        style={[s.joinBtn, opp.isJoined ? s.joinBtnDone : null]}
-                        onPress={() => handleJoin(opp)}
-                      >
-                        <Text style={[s.joinBtnTxt, opp.isJoined ? s.joinBtnTxtDone : null]}>
-                          {opp.isJoined ? 'Joined ✓' : 'Join'}
-                        </Text>
-                      </TouchableOpacity>
+                      {opp.isOrganizer ? (
+                        <View style={s.organizerBadge}>
+                          <Text style={s.organizerBadgeTxt}>Your Session</Text>
+                        </View>
+                      ) : confirmingOppId === opp.id ? (
+                        <View style={s.confirmActions}>
+                           <TouchableOpacity style={s.cancelJoinBtn} onPress={() => setConfirmingOppId(null)}>
+                             <Text style={s.cancelJoinTxt}>Cancel</Text>
+                           </TouchableOpacity>
+                           <TouchableOpacity style={s.confirmJoinBtn} onPress={() => confirmJoin(opp)}>
+                             <Text style={s.confirmJoinTxt}>Confirm</Text>
+                           </TouchableOpacity>
+                        </View>
+                      ) : opp.isJoined && opp.groupChatId ? (
+                        <TouchableOpacity
+                          style={[s.joinBtn, s.joinBtnDone]}
+                          onPress={() => router.push({ pathname: '/chat', params: { openId: opp.groupChatId } })}
+                        >
+                          <Text style={[s.joinBtnTxt, s.joinBtnTxtDone]}>Open Chat</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={[s.joinBtn, opp.isJoined ? s.joinBtnDone : null]}
+                          onPress={() => handleJoin(opp)}
+                        >
+                          <Text style={[s.joinBtnTxt, opp.isJoined ? s.joinBtnTxtDone : null]}>
+                            {opp.isJoined ? 'Joined ✓' : 'Join'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -274,15 +298,8 @@ export default function VolunteerScreen() {
                   </View>
                 ))}
 
-                <View style={s.toggleField}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.toggleLabel}>Create group chat for this session</Text>
-                    <Text style={s.toggleSub}>Participants will be added automatically</Text>
-                  </View>
-                  <Toggle 
-                    checked={sessionData.createGroupChat} 
-                    onChange={v => setSessionData(p => ({ ...p, createGroupChat: v }))} 
-                  />
+                <View style={s.groupChatInfo}>
+                  <Text style={s.groupChatInfoTxt}>💬 A group chat will be created automatically for this session</Text>
                 </View>
 
                 <View style={s.formBtns}>
@@ -298,17 +315,6 @@ export default function VolunteerScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* Toast */}
-      {(applicationSubmitted || sessionSubmitted) && (
-        <View style={s.toast}>
-          <CheckCircle size={22} color={C.white} />
-          <View>
-            <Text style={s.toastTitle}>{applicationSubmitted ? 'Application Submitted!' : 'Session Created!'}</Text>
-            <Text style={s.toastSub}>{applicationSubmitted ? "We'll review your application shortly" : 'Your session is now live'}</Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
@@ -342,6 +348,11 @@ const s = StyleSheet.create({
   joinBtnDone: { backgroundColor: C.violet100 },
   joinBtnTxt: { color: C.white, fontWeight: '700', fontSize: 13 },
   joinBtnTxtDone: { color: C.violet600 },
+  confirmActions: { flexDirection: 'row', gap: 8 },
+  cancelJoinBtn: { backgroundColor: C.gray100, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  cancelJoinTxt: { color: C.gray700, fontWeight: '600', fontSize: 13 },
+  confirmJoinBtn: { backgroundColor: C.violet600, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  confirmJoinTxt: { color: C.white, fontWeight: '700', fontSize: 13 },
   mySessionCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.white, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.gray100 },
   mySessionInfo: { gap: 4 },
   mySessionTitle: { fontWeight: '700', fontSize: 15, color: C.gray900 },
@@ -356,15 +367,14 @@ const s = StyleSheet.create({
   fieldLabel: { fontSize: 10, fontWeight: '700', color: C.gray400, letterSpacing: 1, marginBottom: 6 },
   fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, color: C.gray900, borderWidth: 1, borderColor: C.gray200 },
   fieldTextarea: { minHeight: 80, textAlignVertical: 'top' },
-  toggleField: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.violet50, padding: 16, borderRadius: 14, marginTop: 8, borderWidth: 1, borderColor: C.violet100 },
-  toggleLabel: { fontSize: 14, fontWeight: '700', color: C.violet600 },
-  toggleSub: { fontSize: 11, color: C.violet400, marginTop: 2 },
+  organizerBadge: { backgroundColor: C.violet100, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  organizerBadgeTxt: { color: C.violet600, fontWeight: '700', fontSize: 13 },
+  groupChatInfo: { backgroundColor: C.violet50, borderRadius: 12, padding: 12, marginTop: 4, borderWidth: 1, borderColor: C.violet100 },
+  groupChatInfoTxt: { fontSize: 13, color: C.violet600, fontWeight: '500' },
   formBtns: { flexDirection: 'row', gap: 10, marginTop: 8, marginBottom: 8 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.gray100, alignItems: 'center' },
   cancelBtnTxt: { fontWeight: '600', color: C.gray700 },
   submitBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.violet600, alignItems: 'center' },
   submitBtnTxt: { fontWeight: '700', color: C.white },
-  toast: { position: 'absolute', bottom: 90, left: 16, right: 16, backgroundColor: C.violet600, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  toastTitle: { color: C.white, fontWeight: '700', fontSize: 14 },
-  toastSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
+  successIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' },
 });

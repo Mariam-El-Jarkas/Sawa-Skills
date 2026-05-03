@@ -19,4 +19,9 @@ public class HomeStatsResponse {
     private Long totalCities;
 
     private Boolean isAuthenticated;
+
+    // Location & swap activity (authenticated only)
+    private String userCity;
+    private Long pendingSwapCount;
+    private Long activeSwapCount;
 }

@@ -3,19 +3,28 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { apiGet, apiPost, setOnUnauthorized } from '../services/api';
+import { notificationService } from '../services/notificationService';
 
 const TOKEN_KEY = 'auth_token';
 
 // expo-secure-store doesn't work on web — fall back to in-memory
 const saveToken = async (token: string) => {
-  if (Platform.OS !== 'web') await SecureStore.setItemAsync(TOKEN_KEY, token);
+  if (Platform.OS !== 'web') {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  } else {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
 };
 const loadToken = async (): Promise<string | null> => {
   if (Platform.OS !== 'web') return await SecureStore.getItemAsync(TOKEN_KEY);
-  return null;
+  return localStorage.getItem(TOKEN_KEY);
 };
 const deleteToken = async () => {
-  if (Platform.OS !== 'web') await SecureStore.deleteItemAsync(TOKEN_KEY);
+  if (Platform.OS !== 'web') {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
 };
 
 interface User {
@@ -50,6 +59,8 @@ interface AuthContextType {
   updateUser: (updates: Partial<User>) => void;
   showLoginPrompt: boolean;
   setShowLoginPrompt: (show: boolean) => void;
+  unreadNotificationsCount: number;
+  setUnreadNotificationsCount: (count: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -60,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   // Restore session on app launch
   useEffect(() => {
@@ -75,24 +87,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const stored = await loadToken();
         if (stored) {
-          // Decode payload for user info only — backend 401 handler clears expired tokens
+          // Verify token with backend
           try {
-            const parts = stored.split('.');
-            if (parts.length === 3) {
-              const payload = JSON.parse(atob(parts[1]));
-              setToken(stored);
-              setIsLoggedIn(true);
-              setUser({
-                id: payload.userId,
-                name: payload.name ?? '',
-                email: payload.sub,
-                role: payload.role ?? 'USER',
-                isAgeVerified: false,
-                isMinorVerified: false,
-              });
-            }
+            const profile = await apiGet<any>('/api/profile/me', stored);
+            setToken(stored);
+            setIsLoggedIn(true);
+            setUser({
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              role: profile.role || 'USER',
+              bio: profile.bio,
+              profilePicture: profile.profilePicture,
+              isAgeVerified: profile.ageVerificationStatus === 'APPROVED',
+              isMinorVerified: profile.isMinorVerified,
+              ageVerificationStatus: profile.ageVerificationStatus,
+            });
+            try {
+              const unreadRes = await notificationService.getUnreadCount(stored);
+              setUnreadNotificationsCount(unreadRes.count);
+            } catch { /* silent */ }
           } catch {
             await deleteToken();
+            setToken(null);
+            setIsLoggedIn(false);
+            setUser(null);
           }
         }
       } catch {
@@ -197,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       forgotPassword, resetPassword, loginWithSocial,
       verifyAge, verifyMinor, updateUser,
       showLoginPrompt, setShowLoginPrompt,
+      unreadNotificationsCount, setUnreadNotificationsCount,
     }}>
       {children}
     </AuthContext.Provider>

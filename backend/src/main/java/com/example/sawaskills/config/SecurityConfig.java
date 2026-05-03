@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
-                                "/api/verification/minor/approve",
+                                "/api/verification/minor/parent-decision",
                                 "/uploads/**",
                                 "/error"
                         ).permitAll()
@@ -43,7 +43,10 @@ public class SecurityConfig {
                                 "/api/skills/categories",
                                 "/api/home/stats",
                                 "/api/home/trending",
-                                "/api/volunteer/sessions"
+                                "/api/volunteer/sessions",
+                                "/api/posts",
+                                "/api/posts/*/comments",
+                                "/api/stories"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

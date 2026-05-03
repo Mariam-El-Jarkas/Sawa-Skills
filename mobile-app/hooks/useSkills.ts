@@ -60,9 +60,9 @@ export function useSkills(): SkillsState & SkillsActions {
       currentPageRef.current = 0;
       currentParamsRef.current = params;
       try {
-        const data = await skillsService.browseListings({ ...params, page: 0, size: PAGE_SIZE }, token);
-        setListings(data);
-        setHasMore(data.length === PAGE_SIZE);
+        const data = (await skillsService.browseListings({ ...params, page: 0, size: PAGE_SIZE }, token)) || [];
+        setListings(Array.isArray(data) ? data : []);
+        setHasMore(Array.isArray(data) && data.length === PAGE_SIZE);
       } catch (e: any) {
         setError(e.message ?? 'Failed to load skills');
       } finally {
@@ -77,8 +77,8 @@ export function useSkills(): SkillsState & SkillsActions {
     const nextPage = currentPageRef.current + 1;
     setIsLoadingMore(true);
     try {
-      const data = await skillsService.browseListings({ ...currentParamsRef.current, page: nextPage, size: PAGE_SIZE }, token);
-      setListings(prev => [...prev, ...data]);
+      const data = (await skillsService.browseListings({ ...currentParamsRef.current, page: nextPage, size: PAGE_SIZE }, token)) || [];
+      setListings(prev => [...(Array.isArray(prev) ? prev : []), ...(Array.isArray(data) ? data : [])]);
       setHasMore(data.length === PAGE_SIZE);
       currentPageRef.current = nextPage;
     } catch {
@@ -105,9 +105,9 @@ export function useSkills(): SkillsState & SkillsActions {
         skillsService.getMyOfferedSkills(token),
         skillsService.getMyWantedSkills(token),
       ]);
-      setMyListings(listings);
-      setMyOffered(offered);
-      setMyWanted(wanted);
+      setMyListings(Array.isArray(listings) ? listings : []);
+      setMyOffered(Array.isArray(offered) ? offered : []);
+      setMyWanted(Array.isArray(wanted) ? wanted : []);
     } catch {
       // Silently fail — user stays on UI with empty lists
     } finally {

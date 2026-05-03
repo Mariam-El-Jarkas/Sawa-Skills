@@ -23,7 +23,13 @@ public class Conversation {
     private LocalDateTime createdAt;
     
     private String name;
-    
+
+    @ManyToOne
+    @JoinColumn(name = "admin_id")
+    private User admin;
+
+    @Builder.Default
+    private boolean everyoneCanMessage = true;
 
     @ManyToMany
     @JoinTable(

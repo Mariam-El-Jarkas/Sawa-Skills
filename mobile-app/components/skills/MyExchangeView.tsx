@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Plus, Eye } from 'lucide-react-native';
 import { ListingCard } from '../cards/ListingCard';
 import { C } from '../theme';
@@ -42,8 +42,8 @@ export function MyExchangeView({
       </TouchableOpacity>
 
       <Text style={s.meSection}>ACTIVE LISTINGS</Text>
-      {myListings.length === 0 && <Text style={s.emptyTxt}>No listings yet.</Text>}
-      {myListings.map(l => (
+      {(Array.isArray(myListings) && myListings.length === 0) && <Text style={s.emptyTxt}>No listings yet.</Text>}
+      {Array.isArray(myListings) && myListings.map(l => (
         <ListingCard
           key={l.id}
           listing={l}
@@ -55,8 +55,8 @@ export function MyExchangeView({
 
       <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I OFFER</Text>
       <TouchableOpacity onPress={onAddOffered} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
-      {myOffered.length === 0 && <Text style={s.emptyTxt}>No offered skills yet.</Text>}
-      {myOffered.map(sk => (
+      {(Array.isArray(myOffered) && myOffered.length === 0) && <Text style={s.emptyTxt}>No offered skills yet.</Text>}
+      {Array.isArray(myOffered) && myOffered.map(sk => (
         <View key={sk.id} style={s.skillRow}>
           <View style={s.skillRowInfo}>
             <Text style={s.skillRowName}>{sk.skillName}</Text>
@@ -70,8 +70,8 @@ export function MyExchangeView({
 
       <Text style={[s.meSection, { marginTop: 20 }]}>SKILLS I WANT</Text>
       <TouchableOpacity onPress={onAddWanted} style={s.addLink}><Text style={s.addLinkTxt}>+ Add</Text></TouchableOpacity>
-      {myWanted.length === 0 && <Text style={s.emptyTxt}>No wanted skills yet.</Text>}
-      {myWanted.map(sk => (
+      {(Array.isArray(myWanted) && myWanted.length === 0) && <Text style={s.emptyTxt}>No wanted skills yet.</Text>}
+      {Array.isArray(myWanted) && myWanted.map(sk => (
         <View key={sk.id} style={s.skillRow}>
           <View style={s.skillRowInfo}>
             <Text style={s.skillRowName}>{sk.skillName}</Text>

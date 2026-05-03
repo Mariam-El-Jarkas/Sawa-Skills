@@ -19,6 +19,7 @@ interface ChatActions {
   startConversation: (otherUserId: number) => Promise<Conversation>;
   sendMessage: (content: string) => Promise<void>;
   markRead: (conversationId: number) => Promise<void>;
+  updatePermissions: (conversationId: number, everyoneCanMessage: boolean) => Promise<void>;
 }
 
 const POLL_INTERVAL = 5000; // 5 seconds
@@ -32,6 +33,15 @@ export function useChat(): ChatState & ChatActions {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Update permissions ──────────────────────────────────────────────────
+  const updatePermissions = useCallback(async (conversationId: number, everyoneCanMessage: boolean) => {
+    if (!token) return;
+    await chatService.updatePermissions(conversationId, everyoneCanMessage, token);
+    setConversations(prev =>
+      prev.map(c => c.id === conversationId ? { ...c, everyoneCanMessage } : c)
+    );
+  }, [token]);
 
   // ── Fetch conversations ───────────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
@@ -56,8 +66,11 @@ export function useChat(): ChatState & ChatActions {
     try {
       const data = await chatService.getMessages(id, token);
       setMessages(data);
-      // Mark as read silently
+      // Mark as read silently and update local state so the badge disappears immediately
       chatService.markRead(id, token).then(() => {
+        setConversations(prev =>
+          prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c)
+        );
         DeviceEventEmitter.emit('chat_read_event');
       }).catch(() => {});
     } catch (e: any) {
@@ -143,6 +156,6 @@ export function useChat(): ChatState & ChatActions {
     conversations, activeConversationId, messages,
     isLoading, isMessagesLoading, error,
     fetchConversations, openConversation, closeConversation,
-    startConversation, sendMessage, markRead,
+    startConversation, sendMessage, markRead, updatePermissions
   };
 }
