@@ -16,11 +16,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
 import { profileService } from '../../services/profileService';
 import { postsService, Story } from '../../services/postsService';
-import { BASE_URL } from '../../services/api';
 import { ConfirmModal } from '../../components/modals/ConfirmModal';
 import { ConnectButton } from '../../components/profile/ConnectButton';
 import { Toggle } from '../../components/Toggle';
 import { validateLebanesePhone } from '../../utils/validation';
+import { resolveUrl, getInitials } from '../../utils/helpers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { ThemeColors } from '../../components/theme';
@@ -35,9 +35,6 @@ const STORY_GRADIENTS: readonly [string, string][] = [
   ['#FF6B6B', '#FF8E53'],
 ];
 
-function resolveUrl(url: string | null): string | null {
-  return url ? (url.startsWith('http') ? url : `${BASE_URL}${url}`) : null;
-}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -208,11 +205,6 @@ export default function ProfileScreen() {
   useEffect(() => { if (!isLoggedIn) router.replace('/auth'); }, [isLoggedIn]);
   if (!isLoggedIn) return null;
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const getInitials = (name?: string) => {
-    if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
 
   const fmtRating = (r: number) => r > 0 ? r.toFixed(1) : '—';
   const fmtCount = (n: number) => n > 0 ? String(n) : '0';

@@ -11,7 +11,7 @@ import {
   ExternalLink, MoreHorizontal, Edit3, Flag, Check,
   Globe, Users, FileText, BarChart3, PlusCircle, UserPlus,
   Type, Layout, Sparkles, ChevronDown,
-  Star, ArrowRight, Palette, ZoomIn, ZoomOut,
+  Star, ArrowRight, Palette,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -31,7 +31,7 @@ import { profileService } from '../../services/profileService';
 import { chatService, Conversation } from '../../services/chatService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
-import { resolveUrl, relativeTime } from '../../utils/helpers';
+import { resolveUrl, relativeTime, getInitials } from '../../utils/helpers';
 import type { ThemeColors } from '../../components/theme';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -61,12 +61,6 @@ const STORY_FONTS = [
   { name: 'Mono', family: Platform.OS === 'ios' ? 'Courier' : 'monospace', weight: '400' },
 ] as const;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getInitials(name?: string): string {
-  if (!name) return '??';
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
 
 function mergeWithML(posts: Post[], mlPosts: Post[]): Post[] {
   if (!mlPosts.length) return posts;

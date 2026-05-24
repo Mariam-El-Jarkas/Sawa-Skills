@@ -17,3 +17,9 @@ export function relativeTime(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 }
+
+/** Returns up to 2 uppercase initials from a display name */
+export function getInitials(name?: string): string {
+  if (!name) return '??';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
