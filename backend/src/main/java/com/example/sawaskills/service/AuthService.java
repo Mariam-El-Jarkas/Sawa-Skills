@@ -48,6 +48,7 @@ public class AuthService {
                 .phoneNumber(request.getPhone())
                 .role("USER")
                 .dob(dob)
+                .gender(request.getGender())
                 .verified(false)
                 .createdAt(LocalDateTime.now())
                 .build();

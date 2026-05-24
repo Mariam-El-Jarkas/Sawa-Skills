@@ -12,6 +12,8 @@ public class VerificationSubmission {
     private String selfieImage;  // base64
     private String parentEmail;
     
+    private String gender; // MALE | FEMALE | PREFER_NOT_TO_SAY
+
     // Volunteer fields
     private String why;
     private String experience;

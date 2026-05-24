@@ -20,6 +20,11 @@ public class Story {
     private String mediaUrl;
 
     private String textContent;
+    
+    private String pollQuestion;
+    private String pollOptions;
+
+    private Integer bgIndex;
 
     private LocalDateTime createdAt;
 

@@ -10,4 +10,5 @@ public class CreatePostRequest {
     private String pollQuestion;
     private String pollOptions;
     private String visibility; // EVERYONE or FOLLOWERS
+    private Long sharedPostId; // when reposting, carry original post's media
 }

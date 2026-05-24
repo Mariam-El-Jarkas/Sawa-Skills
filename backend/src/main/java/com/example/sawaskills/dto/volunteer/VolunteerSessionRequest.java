@@ -12,5 +12,10 @@ import lombok.NoArgsConstructor;
 public class VolunteerSessionRequest {
     private String title;
     private String description;
-    private String sessionDate; // Simple ISO string or just date string
+    /** ISO-8601 datetime string, e.g. "2025-06-15T15:30:00" */
+    private String sessionDate;
+    /** "REMOTE" or "IN_PERSON" — defaults to "REMOTE" */
+    private String locationType;
+    /** Required when locationType is "IN_PERSON" */
+    private String location;
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { swapsService, Swap, CreateSwapData, RatingData } from '../services/swapsService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -6,7 +6,8 @@ export type SwapFilter = 'all' | 'pending' | 'active' | 'completed' | 'rejected'
 
 export function filterSwaps(swaps: Swap[], filter: SwapFilter): Swap[] {
   if (filter === 'all') return swaps;
-  if (filter === 'pending') return swaps.filter(s => s.status === 'pending');
+  // pending_parent_approval shows under "pending" tab so minor users can see/cancel it
+  if (filter === 'pending') return swaps.filter(s => s.status === 'pending' || s.status === 'pending_parent_approval');
   if (filter === 'rejected') return swaps.filter(s => s.status === 'rejected');
   if (filter === 'active') return swaps.filter(s => s.status === 'active' && !s.isFinished);
   if (filter === 'completed') return swaps.filter(s => s.status === 'completed' || (s.status === 'active' && s.isFinished));
@@ -33,6 +34,11 @@ export function useSwaps(): SwapsState & SwapsActions {
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear user-specific state on logout so previous user's data is never visible to next user
+  useEffect(() => {
+    if (!token) setSwaps([]);
+  }, [token]);
 
   const fetchSwaps = useCallback(async (status?: string) => {
     if (!token) return;

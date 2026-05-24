@@ -21,6 +21,17 @@ public class Message {
 
     private Boolean read;
 
+    private Long replyToStoryId;
+    private String replyToStoryText;
+    private String replyToStoryMedia;
+
+    private Long sharedPostId;
+    private Long sharedPostAuthorId;
+    private String sharedPostAuthorName;
+    private String sharedPostContent;
+    private String sharedPostImage;
+    private String sharedPostPollOptions;
+
     private LocalDateTime sentAt;
 
     @ManyToOne

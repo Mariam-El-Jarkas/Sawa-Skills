@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { CheckCircle, XCircle, Eye, ShieldCheck, Clock, Award, Mail } from 'lucide-react'
 import { PageHeader, Table, Modal, ConfirmDialog } from '../../components/ui'
 import { useAuthStore } from '../../store/authStore'
+import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
 const STATUS_BADGE = {
@@ -15,7 +16,8 @@ const STATUS_BADGE = {
 const BASE_URL = 'http://localhost:8080'
 
 export default function VerificationPage() {
-  const { token } = useAuthStore()
+  const { token, logout } = useAuthStore()
+  const navigate = useNavigate()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
@@ -24,16 +26,22 @@ export default function VerificationPage() {
   const [tab, setTab] = useState('ADULT')
 
   useEffect(() => {
-    fetchRequests()
-  }, [])
+    if (token) fetchRequests()
+  }, [token])
 
   const fetchRequests = async () => {
+    if (!token) return
     setLoading(true)
     setFetchError(null)
     try {
       const res = await fetch(`${BASE_URL}/api/verification/admin/requests`, {
         headers: { Authorization: `Bearer ${token}` }
       })
+      if (res.status === 401) {
+        logout()
+        navigate('/login')
+        return
+      }
       if (res.ok) {
         const data = await res.json()
         setRequests(data)

@@ -23,14 +23,36 @@ public class StoryService {
     private final StoryRepository storyRepository;
     private final StoryViewRepository storyViewRepository;
     private final UserRepository userRepository;
+    private final StoryPollVoteRepository storyPollVoteRepository;
+    private final StoryLikeRepository storyLikeRepository;
+    private final ConnectionRepository connectionRepository;
     private final PostService postService; // reuse saveImage helper
+    private final NotificationService notificationService;
 
     // ── Active stories (not expired) ─────────────────────────────────────────────
 
     public List<StoryResponse> getActiveStories(String email) {
-        Long userId = resolveUserId(email);
-        return storyRepository.findByExpiresAtAfterOrderByCreatedAtDesc(LocalDateTime.now()).stream()
-                .map(s -> toStoryResponse(s, userId))
+        List<Story> allActive = storyRepository.findByExpiresAtAfterOrderByCreatedAtDesc(LocalDateTime.now());
+
+        // Guest: no connection context — show all active stories
+        if (email == null) {
+            return allActive.stream()
+                    .map(s -> toStoryResponse(s, null))
+                    .collect(Collectors.toList());
+        }
+
+        User user = findUser(email);
+        List<Long> connectedIds = connectionRepository.findAcceptedByUserId(user.getId())
+                .stream()
+                .map(c -> c.getRequester().getId().equals(user.getId())
+                        ? c.getReceiver().getId()
+                        : c.getRequester().getId())
+                .collect(Collectors.toList());
+        connectedIds.add(user.getId());
+
+        return allActive.stream()
+                .filter(s -> connectedIds.contains(s.getUser().getId()))
+                .map(s -> toStoryResponse(s, user.getId()))
                 .collect(Collectors.toList());
     }
 
@@ -47,6 +69,9 @@ public class StoryService {
         Story story = Story.builder()
                 .textContent(request.getTextContent())
                 .mediaUrl(mediaUrl)
+                .pollQuestion(request.getPollQuestion())
+                .pollOptions(request.getPollOptions())
+                .bgIndex(request.getBgIndex())
                 .user(user)
                 .createdAt(LocalDateTime.now())
                 .expiresAt(LocalDateTime.now().plusHours(24))
@@ -71,6 +96,78 @@ public class StoryService {
         }
     }
 
+    @Transactional
+    public void toggleLike(String email, Long storyId) {
+        User user = findUser(email);
+        Story story = storyRepository.findById(storyId)
+                .orElseThrow(() -> new RuntimeException("Story not found"));
+        
+        storyLikeRepository.findByStoryAndUser(story, user)
+            .ifPresentOrElse(
+                storyLikeRepository::delete,
+                () -> {
+                    storyLikeRepository.save(StoryLike.builder()
+                            .story(story)
+                            .user(user)
+                            .createdAt(LocalDateTime.now())
+                            .build());
+                    notificationService.notifyStoryLiked(story.getUser(), user, storyId);
+                }
+            );
+    }
+
+    @Transactional
+    public void submitVote(String email, Long storyId, String option) {
+        User user = findUser(email);
+        Story story = storyRepository.findById(storyId)
+                .orElseThrow(() -> new RuntimeException("Story not found"));
+        
+        storyPollVoteRepository.findByStoryAndUser(story, user)
+            .ifPresentOrElse(
+                v -> { v.setSelectedOption(option); storyPollVoteRepository.save(v); },
+                () -> {
+                    storyPollVoteRepository.save(StoryPollVote.builder()
+                            .story(story)
+                            .user(user)
+                            .selectedOption(option)
+                            .createdAt(LocalDateTime.now())
+                            .build());
+                    notificationService.notifyStoryPollVoted(story.getUser(), user, storyId);
+                }
+            );
+    }
+
+    @Transactional
+    public void deleteStory(String email, Long storyId) {
+        User user = findUser(email);
+        Story story = storyRepository.findById(storyId)
+                .orElseThrow(() -> new RuntimeException("Story not found"));
+        
+        if (!story.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only delete your own stories");
+        }
+
+        storyLikeRepository.deleteByStoryId(storyId);
+        storyViewRepository.deleteByStoryId(storyId);
+        storyPollVoteRepository.deleteByStoryId(storyId);
+        storyRepository.delete(story);
+    }
+
+    // ── Stories for a specific user's profile ────────────────────────────────────
+
+    public List<StoryResponse> getUserStories(String viewerEmail, Long targetUserId) {
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        Long viewerUserId = resolveUserId(viewerEmail);
+        if (!targetUser.isPublicProfile() && !targetUserId.equals(viewerUserId)) {
+            return java.util.Collections.emptyList();
+        }
+        return storyRepository.findByUserIdAndExpiresAtAfterOrderByCreatedAtDesc(
+                targetUserId, LocalDateTime.now()).stream()
+                .map(s -> toStoryResponse(s, viewerUserId))
+                .collect(Collectors.toList());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private StoryResponse toStoryResponse(Story s, Long currentUserId) {
@@ -84,10 +181,35 @@ public class StoryService {
                 .userPicture(s.getUser().getProfilePicture())
                 .textContent(s.getTextContent())
                 .mediaUrl(s.getMediaUrl())
+                .pollQuestion(s.getPollQuestion())
+                .pollOptions(s.getPollOptions())
+                .pollResults(getPollResults(s.getId(), s.getPollOptions()))
+                .userPollVote(getUserVote(s.getId(), currentUserId))
                 .createdAt(s.getCreatedAt().toString())
                 .expiresAt(s.getExpiresAt().toString())
                 .hasViewed(hasViewed)
+                .liked(currentUserId != null && storyLikeRepository.existsByStoryIdAndUserId(s.getId(), currentUserId))
+                .likeCount(storyLikeRepository.countByStoryId(s.getId()))
+                .bgIndex(s.getBgIndex() != null ? s.getBgIndex() : 0)
                 .build();
+    }
+
+    private java.util.Map<String, Long> getPollResults(Long storyId, String options) {
+        if (options == null) return null;
+        java.util.Map<String, Long> results = new java.util.LinkedHashMap<>();
+        for (String opt : options.split(",")) {
+            results.put(opt.trim(), storyPollVoteRepository.findByStoryId(storyId).stream()
+                    .filter(v -> v.getSelectedOption().equals(opt.trim()))
+                    .count());
+        }
+        return results;
+    }
+
+    private String getUserVote(Long storyId, Long userId) {
+        if (userId == null) return null;
+        return storyPollVoteRepository.findByStoryAndUser(Story.builder().id(storyId).build(), User.builder().id(userId).build())
+                .map(StoryPollVote::getSelectedOption)
+                .orElse(null);
     }
 
     private String initials(String name) {

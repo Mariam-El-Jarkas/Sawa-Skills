@@ -29,4 +29,5 @@ public class RegisterRequest {
 
     private String dateOfBirth;
     private String city;
+    private String gender; // MALE | FEMALE | PREFER_NOT_TO_SAY
 }

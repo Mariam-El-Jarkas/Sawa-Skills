@@ -26,7 +26,6 @@ public class ExchangeListing {
     @Column(nullable = false)
     private String offeredSkill;
 
-    @Column(nullable = false)
     private String wantedSkill;
 
     private String location;
@@ -38,6 +37,10 @@ public class ExchangeListing {
     
     @Builder.Default
     private boolean active = true;
+
+    @Builder.Default
+    @Column(columnDefinition = "boolean default false")
+    private boolean isFree = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)

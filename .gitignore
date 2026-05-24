@@ -48,6 +48,7 @@ Admin dashboard (React)
 ######################################
 admin-dashboard/node_modules/
 admin-dashboard/dist/
+admin-dashboard/.vite/
 
 ######################################
 Python ML service
@@ -56,6 +57,17 @@ ml-service/pycache/
 ml-service/.pyc
 ml-service/.venv/
 ml-service/venv/
+
+######################################
+User uploads (never commit real data)
+######################################
+backend/uploads/verifications/
+backend/uploads/pictures/
+
+######################################
+Tool artifacts
+######################################
+.qodo/
 
 ######################################
 OS files

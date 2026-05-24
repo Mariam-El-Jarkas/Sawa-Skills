@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { TouchableOpacity, Animated, StyleSheet, View } from 'react-native';
-import { C } from './theme';
+import { TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ToggleProps {
   checked: boolean;
@@ -8,31 +8,29 @@ interface ToggleProps {
 }
 
 export function Toggle({ checked, onChange }: ToggleProps) {
+  const { C } = useTheme();
   const animatedValue = useRef(new Animated.Value(checked ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.timing(animatedValue, {
       toValue: checked ? 1 : 0,
       duration: 200,
-      useNativeDriver: false, // Color and position animation doesn't support native driver for these props
+      useNativeDriver: false,
     }).start();
   }, [checked]);
 
   const translateX = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [2, 22], // Adjusted for 44px width and 20px thumb
+    outputRange: [2, 22],
   });
 
   const backgroundColor = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [C.gray200, C.violet600],
+    outputRange: [C.gray300, C.violet600],
   });
 
   return (
-    <TouchableOpacity 
-      activeOpacity={0.8} 
-      onPress={() => onChange(!checked)}
-    >
+    <TouchableOpacity activeOpacity={0.8} onPress={() => onChange(!checked)}>
       <Animated.View style={[s.track, { backgroundColor }]}>
         <Animated.View style={[s.thumb, { transform: [{ translateX }] }]} />
       </Animated.View>
@@ -51,8 +49,7 @@ const s = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: C.white,
-    // Add a slight shadow for elevation look
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,

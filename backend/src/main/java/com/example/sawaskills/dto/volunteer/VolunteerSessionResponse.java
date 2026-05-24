@@ -22,4 +22,14 @@ public class VolunteerSessionResponse {
     @com.fasterxml.jackson.annotation.JsonProperty("isOrganizer")
     private boolean isOrganizer;
     private Long groupChatId;
+    /** Age of the organizer (for safety confirmation UI) */
+    private Integer organizerAge;
+    /** Gender of the organizer (for safety confirmation UI) */
+    private String organizerGender;
+    /** "REMOTE" or "IN_PERSON" */
+    private String locationType;
+    /** Meeting address — only present when locationType is IN_PERSON */
+    private String location;
+    /** Human-readable time portion, e.g. "3:30 PM" */
+    private String time;
 }

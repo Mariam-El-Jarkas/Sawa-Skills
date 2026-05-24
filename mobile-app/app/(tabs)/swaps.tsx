@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Clock } from 'lucide-react-native';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native';
 import { useToast } from '../../components/modals/AppToast';
@@ -6,17 +6,19 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSwaps, filterSwaps, SwapFilter } from '../../hooks/useSwaps';
 import { chatService } from '../../services/chatService';
-import { InlineGuestLoginPrompt } from '../../components/InlineGuestLoginPrompt';
+import { GuestGate } from '../../components/GuestGate';
+import { VerificationGate } from '../../components/VerificationGate';
 import { SwapCard } from '../../components/cards/SwapCard';
 import { RatingModal } from '../../components/modals/RatingModal';
 import { VerifySwapModal } from '../../components/modals/VerifySwapModal';
-import { C } from '../../components/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 
 
 export default function SwapsScreen() {
+  const { C } = useTheme();
   const router = useRouter();
-  const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, user, token, setShowLoginPrompt } = useAuth();
   const { swaps, isLoading, error, fetchSwaps, acceptSwap, rejectSwap, markFinished, rateSwap } = useSwaps();
   const { showToast } = useToast();
   const [filter, setFilter] = useState<SwapFilter>('all');
@@ -31,6 +33,14 @@ export default function SwapsScreen() {
       if (isLoggedIn) fetchSwaps('all');
     }, [isLoggedIn, fetchSwaps])
   );
+
+  // Poll every 5s while any swap is awaiting parent approval so the status updates automatically
+  const hasPendingParent = swaps.some(s => s.status === 'pending_parent_approval');
+  useEffect(() => {
+    if (!isLoggedIn || !hasPendingParent) return;
+    const id = setInterval(() => fetchSwaps('all'), 5000);
+    return () => clearInterval(id);
+  }, [isLoggedIn, hasPendingParent, fetchSwaps]);
 
   const handleAccept = async (id: number) => {
     setPendingAcceptId(id);
@@ -91,7 +101,25 @@ export default function SwapsScreen() {
 
   const displayed = filterSwaps(swaps, filter);
 
+  const s = useMemo(() => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: C.gray50 },
+    body: { padding: 16, gap: 12, paddingBottom: 32 },
+    title: { fontSize: 24, fontWeight: '700', color: C.gray900 },
+    subtitle: { fontSize: 13, color: C.gray500, marginTop: -8 },
+    filterScroll: { marginBottom: 4 },
+    filterPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.gray200, marginRight: 8 },
+    filterPillActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
+    filterTxt: { fontSize: 13, fontWeight: '500', color: C.gray700 },
+    filterTxtActive: { color: C.white, fontWeight: '600' },
+    errorTxt: { color: C.violet600, textAlign: 'center', fontSize: 13, paddingVertical: 16 },
+    empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
+    emptyTxt: { color: C.gray500, fontSize: 14 },
+  }), [C]);
+
+  const isVerified = !!(user?.isAgeVerified || user?.isMinorVerified);
+
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       style={s.screen}
       showsVerticalScrollIndicator={false}
@@ -125,8 +153,6 @@ export default function SwapsScreen() {
           ))}
         </ScrollView>
 
-        {!isLoggedIn && <InlineGuestLoginPrompt featureName="Swaps" />}
-
         {isLoggedIn && isLoading && (
           <ActivityIndicator size="large" color={C.violet600} style={{ marginTop: 32 }} />
         )}
@@ -144,7 +170,7 @@ export default function SwapsScreen() {
             onFinish={handleMarkFinished}
             onRate={setRatingSwapId}
             onChat={handleChat}
-            onViewProfile={(uid) => router.push(`/profile?userId=${uid}`)}
+            onViewProfile={(uid) => router.push(`/profile/${uid}`)}
           />
         ))}
 
@@ -168,23 +194,15 @@ export default function SwapsScreen() {
         isVisible={showVerify}
         onClose={() => setShowVerify(false)}
         onConfirm={handleAcceptConfirmed}
-        onLearnMore={() => { setShowVerify(false); router.push('/profile'); }}
+        onLearnMore={() => { setShowVerify(false); router.push(`/profile/${user?.id}`); }}
+        otherUserName={swaps.find(s => s.id === pendingAcceptId)?.otherUserName}
+        otherUserAge={swaps.find(s => s.id === pendingAcceptId)?.otherUserAge}
+        otherUserGender={swaps.find(s => s.id === pendingAcceptId)?.otherUserGender}
       />
     </ScrollView>
+    {!isLoggedIn && <GuestGate feature="Swaps" />}
+    {isLoggedIn && !isVerified && <VerificationGate feature="Swaps" />}
+    </View>
   );
 }
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.gray50 },
-  body: { padding: 16, gap: 12, paddingBottom: 32 },
-  title: { fontSize: 24, fontWeight: '700', color: C.gray900 },
-  subtitle: { fontSize: 13, color: C.gray500, marginTop: -8 },
-  filterScroll: { marginBottom: 4 },
-  filterPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.gray200, marginRight: 8 },
-  filterPillActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
-  filterTxt: { fontSize: 13, fontWeight: '500', color: C.gray700 },
-  filterTxtActive: { color: C.white, fontWeight: '600' },
-  errorTxt: { color: '#DC2626', textAlign: 'center', fontSize: 13, paddingVertical: 16 },
-  empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
-  emptyTxt: { color: C.gray500, fontSize: 14 },
-});

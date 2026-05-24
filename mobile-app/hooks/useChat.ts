@@ -20,6 +20,9 @@ interface ChatActions {
   sendMessage: (content: string) => Promise<void>;
   markRead: (conversationId: number) => Promise<void>;
   updatePermissions: (conversationId: number, everyoneCanMessage: boolean) => Promise<void>;
+  clearConversation: (conversationId: number) => Promise<void>;
+  clearMessages: (conversationId: number) => Promise<void>;
+  leaveGroup: (conversationId: number) => Promise<void>;
 }
 
 const POLL_INTERVAL = 5000; // 5 seconds
@@ -33,6 +36,15 @@ export function useChat(): ChatState & ChatActions {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear user-specific state on logout so previous user's data is never visible to next user
+  useEffect(() => {
+    if (!token) {
+      setConversations([]);
+      setMessages([]);
+      setActiveConversationId(null);
+    }
+  }, [token]);
 
   // ── Update permissions ──────────────────────────────────────────────────
   const updatePermissions = useCallback(async (conversationId: number, everyoneCanMessage: boolean) => {
@@ -152,10 +164,57 @@ export function useChat(): ChatState & ChatActions {
     );
   }, [token]);
 
+  const clearConversation = useCallback(async (conversationId: number) => {
+    if (!token) return;
+    try {
+      await chatService.clearConversation(conversationId, token);
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token, activeConversationId]);
+
+  const clearMessages = useCallback(async (conversationId: number) => {
+    if (!token) return;
+    try {
+      await chatService.clearMessages(conversationId, token);
+      // Update local state: keep conversation but clear messages
+      setConversations(prev => prev.map(c => 
+        c.id === conversationId ? { ...c, lastMessage: null, unreadCount: 0 } : c
+      ));
+      if (activeConversationId === conversationId) {
+        setMessages([]);
+      }
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token, activeConversationId]);
+
+  const leaveGroup = useCallback(async (conversationId: number) => {
+    if (!token) return;
+    try {
+      await chatService.leaveGroup(conversationId, token);
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token, activeConversationId]);
+
   return {
     conversations, activeConversationId, messages,
     isLoading, isMessagesLoading, error,
     fetchConversations, openConversation, closeConversation,
-    startConversation, sendMessage, markRead, updatePermissions
+    startConversation, sendMessage, markRead, updatePermissions, clearConversation, clearMessages, leaveGroup
   };
 }

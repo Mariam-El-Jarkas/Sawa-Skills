@@ -13,4 +13,6 @@ public class CommentResponse {
     private boolean isMine;
     private long likeCount;
     private boolean isLiked;
+    private Long parentCommentId;
+    private java.util.List<CommentResponse> replies;
 }

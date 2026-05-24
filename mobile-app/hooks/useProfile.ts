@@ -35,9 +35,11 @@ export interface ProfileData {
   isMinorVerified: boolean;
   ageVerificationStatus: string | null;
   reviews: ReviewData[];
-  offeredSkills: string[];
-  wantedSkills: string[];
+  offeredSkills: { id: number; name: string }[];
+  wantedSkills: { id: number; name: string }[];
   connections: ConnectionData[];
+  connectionStatus: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'CONNECTED' | null;
+  connectionId: number | null;
 }
 
 /** Convert relative path → absolute URL (e.g. /uploads/…  →  http://host:8080/uploads/…) */
@@ -48,7 +50,7 @@ const toAbsoluteUrl = (path: string | null): string | null => {
 };
 
 export function useProfile(userId?: number | string) {
-  const { token, updateUser } = useAuth();
+  const { token, updateUser, user: authUser } = useAuth();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +63,13 @@ export function useProfile(userId?: number | string) {
   const parseError = async (res: Response, fallback: string): Promise<string> => {
     try {
       const text = await res.text();
-      const json = JSON.parse(text);
-      return json.message ?? json.error ?? fallback;
+      if (!text.trim()) return fallback;
+      try {
+        const json = JSON.parse(text);
+        return json.message ?? json.error ?? text ?? fallback;
+      } catch {
+        return text; // backend returned plain string — use it directly
+      }
     } catch {
       return fallback;
     }
@@ -73,7 +80,8 @@ export function useProfile(userId?: number | string) {
     setLoading(true);
     setError(null);
     try {
-      const endpoint = userId ? `/api/profile/${userId}` : '/api/profile/me';
+      const isOwnId = userId && authUser?.id && String(userId) === String(authUser.id);
+      const endpoint = (!userId || isOwnId) ? '/api/profile/me' : `/api/profile/${userId}`;
       const res = await fetch(`${BASE_URL}${endpoint}`, { headers: getHeaders() });
       if (!res.ok) throw new Error(await parseError(res, `Failed to load profile (${res.status})`));
       const raw: ProfileData = await res.json();
@@ -86,6 +94,8 @@ export function useProfile(userId?: number | string) {
         reviews: raw.reviews ?? [],
         connections: raw.connections ?? [],
         isVolunteer: raw.isVolunteer ?? false,
+        connectionStatus: raw.connectionStatus ?? null,
+        connectionId: raw.connectionId ?? null,
       };
       setProfile(data);
 

@@ -38,6 +38,7 @@ public class ProfileService {
     private final VerificationRequestRepository verificationRequestRepository;
     private final LocationRepository locationRepository;
     private final EmailService emailService;
+    private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
 
     // ── Phase 1: Get full profile ─────────────────────────────────────────────
@@ -63,16 +64,16 @@ public class ProfileService {
                         .build())
                 .collect(Collectors.toList());
 
-        List<String> offeredSkills = userSkillRepository
+        List<ProfileResponse.SkillItem> offeredSkills = userSkillRepository
                 .findByUserIdAndOffering(user.getId(), true)
                 .stream()
-                .map(us -> us.getSkill().getSkillName())
+                .map(us -> ProfileResponse.SkillItem.builder().id(us.getId()).name(us.getSkill().getSkillName()).build())
                 .collect(Collectors.toList());
 
-        List<String> wantedSkills = userSkillRepository
+        List<ProfileResponse.SkillItem> wantedSkills = userSkillRepository
                 .findByUserIdAndOffering(user.getId(), false)
                 .stream()
-                .map(us -> us.getSkill().getSkillName())
+                .map(us -> ProfileResponse.SkillItem.builder().id(us.getId()).name(us.getSkill().getSkillName()).build())
                 .collect(Collectors.toList());
 
         List<ConnectionDto> connections = connectionRepository
@@ -120,11 +121,29 @@ public class ProfileService {
                 .isAgeVerified(isAdultVerified(user))
                 .isMinorVerified(isMinorVerified(user))
                 .isVolunteer(isVolunteer(user))
+                .publicProfile(user.isPublicProfile())
+                .swapNotifications(user.isSwapNotificationsEnabled())
+                .messageNotifications(user.isMessageNotificationsEnabled())
+                .skillNewsNotifications(user.isSkillNewsNotificationsEnabled())
                 .reviews(reviews)
                 .offeredSkills(offeredSkills)
                 .wantedSkills(wantedSkills)
                 .connections(connections)
                 .build();
+    }
+
+    // ── Update privacy settings ───────────────────────────────────────────────
+
+    @Transactional
+    public void updatePrivacy(String email, boolean publicProfile,
+                              boolean swapNotifications, boolean messageNotifications,
+                              boolean skillNewsNotifications) {
+        User user = findUser(email);
+        user.setPublicProfile(publicProfile);
+        user.setSwapNotificationsEnabled(swapNotifications);
+        user.setMessageNotificationsEnabled(messageNotifications);
+        user.setSkillNewsNotificationsEnabled(skillNewsNotifications);
+        userRepository.save(user);
     }
 
     // ── Phase 1: Update bio ───────────────────────────────────────────────────
@@ -406,9 +425,10 @@ public class ProfileService {
 
     // ── Public profile (view another user) ───────────────────────────────────
 
-    public ProfileResponse getPublicProfile(Long userId) {
+    public ProfileResponse getPublicProfile(Long userId, String viewerEmail) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+        if (user.getDeletedAt() != null) throw new RuntimeException("User not found");
 
         double avgRating = reviewRepository
                 .findAvgRatingByReviewedUserId(user.getId())
@@ -416,29 +436,89 @@ public class ProfileService {
         long reviewCount = reviewRepository.countByReviewedUserId(user.getId());
         long swapCount = swapRequestRepository.countCompletedSwapsByUserId(user.getId());
 
-        List<ReviewDto> reviews = reviewRepository
-                .findByReviewedUserIdOrderByCreatedAtDesc(user.getId())
-                .stream()
-                .map(r -> ReviewDto.builder()
-                        .id(r.getId())
-                        .reviewerName(r.getReviewer() != null ? r.getReviewer().getName() : "Anonymous")
-                        .rating(r.getRating())
-                        .comment(r.getComment())
-                        .createdAt(r.getCreatedAt())
-                        .build())
-                .collect(Collectors.toList());
+        // Only return reviews if profile is public
+        List<ReviewDto> reviews = user.isPublicProfile()
+                ? reviewRepository.findByReviewedUserIdOrderByCreatedAtDesc(user.getId())
+                        .stream()
+                        .map(r -> ReviewDto.builder()
+                                .id(r.getId())
+                                .reviewerName(r.getReviewer() != null ? r.getReviewer().getName() : "Anonymous")
+                                .rating(r.getRating())
+                                .comment(r.getComment())
+                                .createdAt(r.getCreatedAt())
+                                .build())
+                        .collect(Collectors.toList())
+                : java.util.Collections.emptyList();
 
-        List<String> offeredSkills = userSkillRepository
+        List<ProfileResponse.SkillItem> offeredSkills = userSkillRepository
                 .findByUserIdAndOffering(user.getId(), true)
                 .stream()
-                .map(us -> us.getSkill().getSkillName())
+                .map(us -> ProfileResponse.SkillItem.builder().id(us.getId()).name(us.getSkill().getSkillName()).build())
                 .collect(Collectors.toList());
 
-        List<String> wantedSkills = userSkillRepository
+        List<ProfileResponse.SkillItem> wantedSkills = userSkillRepository
                 .findByUserIdAndOffering(user.getId(), false)
                 .stream()
-                .map(us -> us.getSkill().getSkillName())
+                .map(us -> ProfileResponse.SkillItem.builder().id(us.getId()).name(us.getSkill().getSkillName()).build())
                 .collect(Collectors.toList());
+
+        List<ConnectionDto> connections = connectionRepository
+                .findAcceptedByUserId(user.getId())
+                .stream()
+                .map(conn -> {
+                    User other = conn.getRequester().getId().equals(user.getId())
+                            ? conn.getReceiver()
+                            : conn.getRequester();
+                    List<String> otherSkills = userSkillRepository
+                            .findByUserIdAndOffering(other.getId(), true)
+                            .stream()
+                            .map(us -> us.getSkill().getSkillName())
+                            .collect(Collectors.toList());
+                    String initials = other.getName() == null ? "??" :
+                            java.util.Arrays.stream(other.getName().split(" "))
+                                    .map(w -> String.valueOf(w.charAt(0)).toUpperCase())
+                                    .limit(2)
+                                    .collect(Collectors.joining());
+                    return ConnectionDto.builder()
+                            .id(conn.getId())
+                            .otherUserId(other.getId())
+                            .otherUserName(other.getName())
+                            .avatarInitials(initials)
+                            .skills(otherSkills)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // ── Connection status between viewer and this profile ─────────────────
+        String connectionStatus = "NONE";
+        Long connectionId = null;
+        if (viewerEmail != null) {
+            java.util.Optional<User> viewerOpt = userRepository.findByEmail(viewerEmail);
+            if (viewerOpt.isPresent() && !viewerOpt.get().getId().equals(userId)) {
+                User viewer = viewerOpt.get();
+                java.util.Optional<Connection> conn = connectionRepository.findByUserId(viewer.getId())
+                        .stream()
+                        .filter(c -> c.getRequester().getId().equals(userId) || c.getReceiver().getId().equals(userId))
+                        .findFirst();
+                if (conn.isPresent()) {
+                    Connection c = conn.get();
+                    if ("ACCEPTED".equals(c.getStatus())) {
+                        connectionStatus = "CONNECTED";
+                        connectionId = c.getId();
+                    } else if ("PENDING".equals(c.getStatus())) {
+                        if (c.getRequester().getId().equals(viewer.getId())) {
+                            connectionStatus = "PENDING_SENT";
+                            connectionId = c.getId();
+                        } else {
+                            connectionStatus = "PENDING_RECEIVED";
+                            connectionId = c.getId();
+                        }
+                    }
+                }
+            }
+        }
+        final String finalConnectionStatus = connectionStatus;
+        final Long finalConnectionId = connectionId;
 
         return ProfileResponse.builder()
                 .id(user.getId())
@@ -451,8 +531,13 @@ public class ProfileService {
                 .isAgeVerified(isAdultVerified(user))
                 .isMinorVerified(isMinorVerified(user))
                 .isVolunteer(isVolunteer(user))
+                .publicProfile(user.isPublicProfile())
+                .reviews(reviews)
                 .offeredSkills(offeredSkills)
                 .wantedSkills(wantedSkills)
+                .connections(connections)
+                .connectionStatus(finalConnectionStatus)
+                .connectionId(finalConnectionId)
                 .build();
     }
 
@@ -483,45 +568,111 @@ public class ProfileService {
     @Transactional
     public void deleteAccount(String email) {
         User user = findUser(email);
-        Long uid = user.getId();
 
-        // Comprehensive Cleanup using Native Queries to handle all FK constraints
-        entityManager.createNativeQuery("DELETE FROM user_skills WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM verification_requests WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM notifications WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM notification_preferences WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
+        // ── Invalidate active credentials so no one can log in again ─────────
+        // otp_verifications and password_reset_tokens store email, not user_id
+        entityManager.createNativeQuery("DELETE FROM otp_verifications WHERE email = :email")
+                .setParameter("email", email).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM password_reset_tokens WHERE email = :email")
+                .setParameter("email", email).executeUpdate();
+        nq("DELETE FROM auth_providers WHERE user_id = :uid", user.getId());
+        nq("UPDATE exchange_listings SET active = false WHERE owner_id = :uid", user.getId());
+
+        // ── Anonymise the user row — replace PII with random/blank values ────
+        // A random email is used so the column remains UNIQUE and non-null,
+        // all existing FK relations stay valid without any cascade deletes.
+        String randomEmail = "deleted_" + java.util.UUID.randomUUID() + "@deleted.sawaskills.com";
+        user.setEmail(randomEmail);
+        user.setDeletedEmailHash(hashEmail(email));   // hash of real email for audit/GDPR proof
+        user.setName("Deleted User");
+        user.setPhoneNumber(null);
+        user.setBio(null);
+        user.setProfilePicture(null);
+        user.setDob(null);
+        user.setRole("DELETED");
+        user.setPublicProfile(false);
+        user.setAllowMessages(false);
+        user.setDeletedAt(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
+        // Everything else (posts, comments, likes, swaps, reviews, messages…)
+        // is kept as-is — it now appears under "Deleted User" with no PII.
+    }
+
+    /** Shorthand for executing a native DELETE/UPDATE with a single :uid parameter. */
+    private void nq(String sql, Long uid) {
+        entityManager.createNativeQuery(sql).setParameter("uid", uid).executeUpdate();
+    }
+
+    private String hashEmail(String email) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(email.toLowerCase().trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return java.util.UUID.randomUUID().toString();
+        }
+    }
+
+    @Transactional
+    public void sendConnectionRequest(String requesterEmail, Long receiverId) {
+        User requester = findUser(requesterEmail);
+        User receiver = userRepository.findById(receiverId)
+                .orElseThrow(() -> new RuntimeException("Receiver not found"));
+
+        if (requester.getId().equals(receiverId)) {
+            throw new RuntimeException("You cannot connect with yourself");
+        }
+
+        // Check if connection already exists
+        List<Connection> existing = connectionRepository.findByUserId(requester.getId());
+        boolean alreadyExists = existing.stream()
+                .anyMatch(c -> c.getRequester().getId().equals(receiverId) || c.getReceiver().getId().equals(receiverId));
         
-        // Swaps & Exchanges
-        entityManager.createNativeQuery("DELETE FROM swap_requests WHERE requester_id = :uid OR receiver_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM exchange_listings WHERE owner_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Connections
-        entityManager.createNativeQuery("DELETE FROM connections WHERE requester_id = :uid OR receiver_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Volunteer System
-        entityManager.createNativeQuery("DELETE FROM volunteer_participants WHERE participant_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM volunteer_sessions WHERE organizer_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM volunteer_applications WHERE applicant_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Chat & Messages
-        entityManager.createNativeQuery("DELETE FROM messages WHERE sender_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM conversation_participants WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("UPDATE conversations SET admin_id = NULL WHERE admin_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Social Features
-        entityManager.createNativeQuery("DELETE FROM post_likes WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM post_shares WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM comment_likes WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM comments WHERE author_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM posts WHERE author_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM stories WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Security & Misc
-        entityManager.createNativeQuery("DELETE FROM auth_providers WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM password_reset_tokens WHERE user_id = :uid").setParameter("uid", uid).executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM support_requests WHERE requester_id = :uid").setParameter("uid", uid).executeUpdate();
-        
-        // Finally remove the user
-        userRepository.delete(user);
+        if (alreadyExists) {
+            throw new RuntimeException("Connection request already exists or you are already connected");
+        }
+
+        Connection connection = Connection.builder()
+                .requester(requester)
+                .receiver(receiver)
+                .status("PENDING")
+                .createdAt(LocalDateTime.now())
+                .build();
+        connection = connectionRepository.save(connection);
+
+        notificationService.notifyConnectionRequest(receiver, requester, connection.getId());
+    }
+
+    @Transactional
+    public void approveConnection(String email, Long connectionId) {
+        User user = findUser(email);
+        Connection connection = connectionRepository.findById(connectionId)
+                .orElseThrow(() -> new RuntimeException("Connection request not found"));
+
+        if (!connection.getReceiver().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only approve connection requests sent to you");
+        }
+
+        connection.setStatus("ACCEPTED");
+        connectionRepository.save(connection);
+
+        notificationService.notifyConnectionAccepted(connection.getRequester(), user);
+    }
+
+    @Transactional
+    public void removeConnection(String email, Long connectionId) {
+        User user = findUser(email);
+        Connection connection = connectionRepository.findById(connectionId)
+                .orElseThrow(() -> new RuntimeException("Connection not found"));
+
+        if (!connection.getReceiver().getId().equals(user.getId()) &&
+            !connection.getRequester().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only remove your own connections");
+        }
+
+        connectionRepository.delete(connection);
     }
 }

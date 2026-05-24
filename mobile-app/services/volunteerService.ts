@@ -5,22 +5,30 @@ export interface VolunteerSession {
   title: string;
   description: string;
   date: string;
+  time?: string | null;
   organizer: string;
   status: string;
   participants: number;
   isJoined: boolean;
   isOrganizer: boolean;
-  location?: string;
+  /** "REMOTE" or "IN_PERSON" */
+  locationType?: string | null;
+  location?: string | null;
   groupChatId?: number | null;
+  organizerAge?: number | null;
+  organizerGender?: string | null;
 }
 
 export interface CreateSessionData {
   name: string;
-  description: string;
-  date: string;
-  time?: string;
-  location?: string;
+  description?: string;
   skills?: string;
+  /** Full ISO-8601 datetime, e.g. "2025-06-15T15:30:00" */
+  isoDateTime: string;
+  /** "REMOTE" or "IN_PERSON" */
+  locationType: 'REMOTE' | 'IN_PERSON';
+  /** Required when locationType is IN_PERSON */
+  location?: string;
 }
 
 export const volunteerService = {
@@ -35,8 +43,10 @@ export const volunteerService = {
   createSession(data: CreateSessionData, token: string): Promise<VolunteerSession> {
     return apiPost<VolunteerSession>('/api/volunteer/sessions', {
       title: data.name,
-      description: data.description,
-      sessionDate: data.date,
+      description: data.description ?? '',
+      sessionDate: data.isoDateTime,
+      locationType: data.locationType,
+      location: data.location ?? null,
     }, token);
   },
 

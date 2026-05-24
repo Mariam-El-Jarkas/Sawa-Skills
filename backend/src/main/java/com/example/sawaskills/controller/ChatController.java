@@ -26,6 +26,13 @@ public class ChatController {
         return ResponseEntity.ok(chatService.getConversations(userDetails.getUsername()));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<List<ConversationResponse>> search(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String query) {
+        return ResponseEntity.ok(chatService.searchConversations(userDetails.getUsername(), query));
+    }
+
     // ── POST /api/chat/conversations — find or create ─────────────────────────
     @PostMapping("/conversations")
     public ResponseEntity<ConversationResponse> startConversation(
@@ -73,5 +80,32 @@ public class ChatController {
         }
         chatService.updatePermissions(userDetails.getUsername(), id, everyoneCanMessage);
         return ResponseEntity.ok(Map.of("message", "Permissions updated successfully"));
+    }
+
+    // ── DELETE /api/chat/conversations/{id} — deletes the record ─────────────
+    @DeleteMapping("/conversations/{id}")
+    public ResponseEntity<Map<String, String>> deleteConversation(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        chatService.clearConversation(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Conversation deleted successfully"));
+    }
+
+    // ── DELETE /api/chat/conversations/{id}/messages — clears history ────────
+    @DeleteMapping("/conversations/{id}/messages")
+    public ResponseEntity<Map<String, String>> clearMessages(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        chatService.clearMessages(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Conversation history cleared"));
+    }
+
+    // ── POST /api/chat/conversations/{id}/leave — leave a group ──────────────
+    @PostMapping("/conversations/{id}/leave")
+    public ResponseEntity<Map<String, String>> leaveGroup(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        chatService.leaveGroup(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Left group successfully"));
     }
 }

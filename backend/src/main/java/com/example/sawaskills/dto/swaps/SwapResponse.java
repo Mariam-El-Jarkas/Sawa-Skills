@@ -14,6 +14,7 @@ public class SwapResponse {
     private Long otherUserId;
     private String otherUserName;
     private String otherUserInitials;
+    private String otherUserPicture;
     private String theyOffer;
     private String youOffer;
     private String note;
@@ -26,4 +27,8 @@ public class SwapResponse {
     private Boolean isFinished;
     /** Whether both users have marked this swap as finished */
     private Boolean everyoneFinished;
+    /** Age of the other party (for safety confirmation UI) */
+    private Integer otherUserAge;
+    /** Gender of the other party (for safety confirmation UI) */
+    private String otherUserGender;
 }

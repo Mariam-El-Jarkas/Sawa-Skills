@@ -1,24 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator,
+  Modal, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
-import { Mail, Lock, User, Phone, ArrowLeft, Eye, EyeOff, Calendar, CheckSquare, Square } from 'lucide-react-native';
+import { Mail, Lock, User, Users, Phone, ArrowLeft, Eye, EyeOff, Calendar, CheckSquare, Square, ChevronDown } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateLebanesePhone } from '../../utils/validation';
-import { C } from '../../components/theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as Facebook from 'expo-auth-session/providers/facebook';
 import * as AuthSession from 'expo-auth-session';
-
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_WEB_CLIENT_ID = '666569458548-shbjvi6f539o126s58sc8kidr6ts7qsu.apps.googleusercontent.com';
-const FACEBOOK_APP_ID      = 'YOUR_FACEBOOK_APP_ID';
-const GITHUB_CLIENT_ID     = 'Ov23li61VCZbLWY9Wh7Y';
+const GOOGLE_WEB_CLIENT_ID      = '666569458548-shbjvi6f539o126s58sc8kidr6ts7qsu.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID      = '666569458548-tgvgrmkaiegecfnn50dl41roo821oa5c.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID  = '666569458548-kmkc256nhmrui112e3v53545tegkcnch.apps.googleusercontent.com';
 
 type Mode = 'login' | 'register' | 'otp' | 'forgot-password' | 'reset-password';
 
@@ -31,6 +31,7 @@ interface FieldErrors {
   email?: string;
   phone?: string;
   birthDate?: string;
+  gender?: string;
   password?: string;
   confirmPassword?: string;
   terms?: string;
@@ -38,7 +39,7 @@ interface FieldErrors {
 
 function validateRegister(
   name: string, email: string, phone: string,
-  birthDate: string, password: string, confirmPassword: string,
+  birthDate: string, gender: string, password: string, confirmPassword: string,
   termsAccepted: boolean
 ): FieldErrors {
   const errors: FieldErrors = {};
@@ -53,7 +54,9 @@ function validateRegister(
   else if (!EMAIL_REGEX.test(email.trim()))
     errors.email = 'Enter a valid email address';
 
-  if (phone.trim()) {
+  if (!phone.trim())
+    errors.phone = 'Phone number is required';
+  else {
     const phoneError = validateLebanesePhone(phone);
     if (phoneError) errors.phone = phoneError;
   }
@@ -69,6 +72,9 @@ function validateRegister(
     else if (dob >= new Date())
       errors.birthDate = 'Date of birth must be in the past';
   }
+
+  if (!gender)
+    errors.gender = 'Please select your gender';
 
   if (!password)
     errors.password = 'Password is required';
@@ -99,7 +105,7 @@ function validateLogin(email: string, password: string): FieldErrors {
   return errors;
 }
 
-function passwordStrength(password: string): { label: string; color: string } {
+function passwordStrength(password: string, C: any): { label: string; color: string } {
   if (!password) return { label: '', color: 'transparent' };
   const hasLetter = /[A-Za-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
@@ -113,6 +119,8 @@ function passwordStrength(password: string): { label: string; color: string } {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AuthScreen() {
+  const { C } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login, signup, verifyOtp, resendOtp, forgotPassword, resetPassword, loginWithSocial } = useAuth();
 
@@ -126,6 +134,8 @@ export default function AuthScreen() {
   const [name, setName]                     = useState('');
   const [birthDate, setBirthDate]           = useState('');
   const [phone, setPhone]                   = useState('');
+  const [gender, setGender]                 = useState('');
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [termsAccepted, setTermsAccepted]   = useState(false);
   const [otpDigits, setOtpDigits]           = useState(['', '', '', '', '', '']);
   const [resetCode, setResetCode]           = useState('');
@@ -158,7 +168,7 @@ export default function AuthScreen() {
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     if (mode === 'register') {
-      const errs = validateRegister(name, email, phone, birthDate, password, confirmPassword, termsAccepted);
+      const errs = validateRegister(name, email, phone, birthDate, gender, password, confirmPassword, termsAccepted);
       setFieldErrors(prev => ({ ...prev, [field]: errs[field] }));
     } else if (mode === 'login') {
       const errs = validateLogin(email, password);
@@ -179,11 +189,21 @@ export default function AuthScreen() {
   }, [password, confirmPassword]);
 
   // ── Social login ────────────────────────────────────────────────────────────
-  const [, googleResponse, promptGoogleAsync] = Google.useAuthRequest({ webClientId: GOOGLE_WEB_CLIENT_ID });
-  const [, fbResponse, promptFacebookAsync]   = Facebook.useAuthRequest({ clientId: FACEBOOK_APP_ID });
+  // iosClientId / androidClientId must be non-null on their respective platforms
+  // (expo-auth-session invariant). We supply the web client ID as a fallback so
+  // the hook doesn't crash on physical devices. Google sign-in is only exposed
+  // in the UI on web where it's fully tested; on native it's hidden.
+  const [, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
+    webClientId:     GOOGLE_WEB_CLIENT_ID,
+    iosClientId:     GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+  });
+  // Facebook: disabled until facebookAppId is configured
+  const [, fbResponse, promptFacebookAsync]   = Facebook.useAuthRequest({ clientId: 'placeholder' });
   const redirectUrl = AuthSession.makeRedirectUri();
+  // GitHub client ID is kept only in the backend; frontend exchanges the code server-side
   const [, githubResponse, promptGithubAsync] = AuthSession.useAuthRequest(
-    { clientId: GITHUB_CLIENT_ID, scopes: ['user:email'], redirectUri: redirectUrl, usePKCE: false },
+    { clientId: '', scopes: ['user:email'], redirectUri: redirectUrl, usePKCE: false },
     { authorizationEndpoint: 'https://github.com/login/oauth/authorize' }
   );
 
@@ -191,7 +211,7 @@ export default function AuthScreen() {
     setLoading(true); setServerError('');
     try {
       await loginWithSocial(provider, accessToken, redirectUri);
-      router.back();
+      try { router.back(); } catch { router.replace('/(tabs)'); }
     } catch (e: any) {
       setServerError(e?.message || `${provider} login failed`);
     } finally { setLoading(false); }
@@ -246,11 +266,11 @@ export default function AuthScreen() {
 
     // ── Guard: run full validation before hitting the network ──────────────
     if (mode === 'register') {
-      const errs = validateRegister(name, email, phone, birthDate, password, confirmPassword, termsAccepted);
+      const errs = validateRegister(name, email, phone, birthDate, gender, password, confirmPassword, termsAccepted);
       if (Object.keys(errs).length > 0) {
         setFieldErrors(errs);
         // Mark all fields as touched so every error becomes visible
-        setTouched({ name: true, email: true, phone: true, birthDate: true, password: true, confirmPassword: true, terms: true });
+        setTouched({ name: true, email: true, phone: true, birthDate: true, gender: true, password: true, confirmPassword: true, terms: true });
         return;
       }
     }
@@ -268,10 +288,10 @@ export default function AuthScreen() {
     try {
       if (mode === 'login') {
         const ok = await login(email, password);
-        if (ok) router.back();
+        if (ok) { try { router.back(); } catch { router.replace('/(tabs)'); } }
 
       } else if (mode === 'register') {
-        const ok = await signup(name, email, phone, password, birthDate);
+        const ok = await signup(name, email, phone, password, birthDate, gender);
         if (ok) { setMode('otp'); setOtpDigits(['', '', '', '', '', '']); }
 
       } else if (mode === 'otp') {
@@ -325,9 +345,8 @@ export default function AuthScreen() {
     if (mode === 'register')       { switchMode('login',    true);  return; } // ← was missing
     if (mode === 'forgot-password') { switchMode('login',   true);  return; }
     if (mode === 'reset-password') { switchMode('login',    true);  return; }
-    // mode === 'login': leave the auth screen; fall back to home if no history
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
+    // mode === 'login': close the auth screen, fall back to home if no history
+    try { router.back(); } catch { router.replace('/(tabs)'); }
   };
 
   const tagline = () => {
@@ -345,10 +364,67 @@ export default function AuthScreen() {
   const inputBorder = (field: keyof FieldErrors) =>
     touched[field] && fieldErrors[field] ? C.red600 : C.gray200;
 
-  const strength = passwordStrength(password);
+  const strength = passwordStrength(password, C);
+
+  const s = useMemo(() => StyleSheet.create({
+    screen:         { flex: 1, backgroundColor: C.gray50 },
+    content:        { padding: 20, paddingBottom: 40 },
+    backBtn:        { padding: 8, marginBottom: 16, alignSelf: 'flex-start', backgroundColor: C.white, borderRadius: 12 },
+    header:         { alignItems: 'center', marginBottom: 32 },
+    logoText:       { fontSize: 36, fontWeight: '700', color: C.violet600, marginBottom: 8 },
+    tagline:        { fontSize: 15, color: C.gray500 },
+    card:           { backgroundColor: C.white, borderRadius: 24, padding: 24, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 16, elevation: 4 },
+    form:           { gap: 12 },
+    sectionNote:    { fontSize: 14, color: C.gray500, textAlign: 'center', lineHeight: 20 },
+    inputWrap:      { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: C.gray200, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white, gap: 10 },
+    input:          { flex: 1, fontSize: 15, color: C.gray900 },
+    inputError:     { color: C.red600 },
+    fieldError:     { color: C.red600, fontSize: 12, marginTop: 4, marginLeft: 4 },
+    forgotBtn:      { alignSelf: 'flex-start' },
+    forgotTxt:      { color: C.violet600, fontSize: 13 },
+    errorTxt:       { color: C.red600, fontSize: 13, textAlign: 'center' },
+    successTxt:     { color: C.emerald600, fontSize: 13, textAlign: 'center' },
+    primaryBtn:     { backgroundColor: C.violet600, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
+    primaryBtnTxt:  { color: C.white, fontWeight: '700', fontSize: 16 },
+    dividerRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    divider:        { flex: 1, height: 1, backgroundColor: C.gray200 },
+    dividerTxt:     { fontSize: 12, color: C.gray400 },
+    socialRow:      { flexDirection: 'row', justifyContent: 'center', gap: 16 },
+    socialBtn:      { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: C.gray200, alignItems: 'center', justifyContent: 'center' },
+    socialIcon:     { fontSize: 18, fontWeight: '700', color: C.gray700 },
+    switchRow:      { flexDirection: 'row', justifyContent: 'center' },
+    switchTxt:      { fontSize: 14, color: C.gray500 },
+    switchLink:     { fontSize: 14, fontWeight: '700', color: C.violet600 },
+    otpSection:     { gap: 16, alignItems: 'center' },
+    otpTitle:       { fontSize: 22, fontWeight: '700' },
+    otpSub:         { fontSize: 14, color: C.gray500 },
+    otpRow:         { flexDirection: 'row', gap: 8 },
+    otpBox:         { width: 46, height: 54, borderWidth: 2, borderColor: C.gray200, borderRadius: 12, fontSize: 22, fontWeight: '700', color: C.gray900 },
+    resendBtn:      { marginTop: 4 },
+    resendTxt:      { color: C.violet600, fontSize: 14 },
+    // ── Gender picker ─────────────────────────────────────────────────────────
+    pickerOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    pickerSheet:    { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingBottom: 36, paddingHorizontal: 20 },
+    pickerHandle:   { width: 40, height: 4, borderRadius: 2, backgroundColor: C.gray200, alignSelf: 'center', marginBottom: 16 },
+    pickerTitle:    { fontSize: 17, fontWeight: '700', color: C.gray900, marginBottom: 12, textAlign: 'center' },
+    pickerOption:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, marginBottom: 6, backgroundColor: C.gray50 },
+    pickerOptionSelected: { backgroundColor: C.violet50, borderWidth: 1.5, borderColor: C.violet200 },
+    pickerOptionTxt:{ flex: 1, fontSize: 15, color: C.gray800, fontWeight: '500' },
+    pickerDot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: C.violet600 },
+    strengthRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
+    strengthBar:    { flex: 1, height: 4, borderRadius: 2 },
+    strengthLabel:  { fontSize: 12, fontWeight: '600', minWidth: 48 },
+    termsRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    termsTxt:       { flex: 1, fontSize: 13, color: C.gray600, lineHeight: 20 },
+    termsLink:      { color: C.violet600, fontWeight: '600' },
+  }), [C]);
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.screen}
+      contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}
+      showsVerticalScrollIndicator={false}
+    >
       <TouchableOpacity style={s.backBtn} onPress={goBack} accessibilityLabel="Go back">
         <ArrowLeft size={24} color={C.gray700} />
       </TouchableOpacity>
@@ -439,7 +515,7 @@ export default function AuthScreen() {
               <Lock size={18} color={C.gray400} />
               <TextInput
                 style={s.input}
-                placeholder="New password (min 6 chars)"
+                placeholder="New password"
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry
@@ -491,13 +567,13 @@ export default function AuthScreen() {
               />
             </Field>
 
-            {/* Phone — register only, optional */}
+            {/* Phone — register only, required */}
             {mode === 'register' && (
-              <Field label="Phone" error={showErr('phone')} borderColor={inputBorder('phone')}>
+              <Field label="Phone *" error={showErr('phone')} borderColor={inputBorder('phone')}>
                 <Phone size={18} color={showErr('phone') ? C.red600 : C.gray400} />
                 <TextInput
                   style={s.input}
-                  placeholder="Phone number (optional)"
+                  placeholder="+961 XX XXX XXX"
                   value={phone}
                   onChangeText={t => { setPhone(t); if (touched.phone) handleBlur('phone'); }}
                   onBlur={() => handleBlur('phone')}
@@ -525,12 +601,64 @@ export default function AuthScreen() {
               </Field>
             )}
 
+            {/* Gender picker — register only */}
+            {mode === 'register' && (
+              <View>
+                <TouchableOpacity
+                  style={[s.inputWrap, showErr('gender') && { borderColor: C.red600 }]}
+                  onPress={() => setShowGenderPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Users size={18} color={showErr('gender') ? C.red600 : C.gray400} />
+                  <Text style={[s.input, { color: gender ? C.gray900 : C.gray400 }]}>
+                    {gender
+                      ? ({ MALE: 'Male', FEMALE: 'Female', PREFER_NOT_TO_SAY: 'Prefer not to say' } as Record<string,string>)[gender]
+                      : 'Gender *'}
+                  </Text>
+                  <ChevronDown size={16} color={C.gray400} />
+                </TouchableOpacity>
+                {!!showErr('gender') && <Text style={s.fieldError}>{showErr('gender')}</Text>}
+
+                {/* Gender bottom-sheet picker */}
+                <Modal visible={showGenderPicker} transparent animationType="slide" onRequestClose={() => setShowGenderPicker(false)}>
+                  <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowGenderPicker(false)}>
+                    <View style={s.pickerSheet}>
+                      <View style={s.pickerHandle} />
+                      <Text style={s.pickerTitle}>Select Gender</Text>
+                      {([
+                        { value: 'MALE',              label: 'Male' },
+                        { value: 'FEMALE',            label: 'Female' },
+                        { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
+                      ] as const).map(opt => {
+                        const selected = gender === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[s.pickerOption, selected && s.pickerOptionSelected]}
+                            onPress={() => {
+                              setGender(opt.value);
+                              setFieldErrors(p => ({ ...p, gender: undefined }));
+                              setShowGenderPicker(false);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.pickerOptionTxt, selected && { color: C.violet700, fontWeight: '700' }]}>{opt.label}</Text>
+                            {selected && <View style={s.pickerDot} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </TouchableOpacity>
+                </Modal>
+              </View>
+            )}
+
             {/* Password */}
             <Field label="Password" error={showErr('password')} borderColor={inputBorder('password')}>
               <Lock size={18} color={showErr('password') ? C.red600 : C.gray400} />
               <TextInput
                 style={s.input}
-                placeholder={mode === 'register' ? 'Password * (min 6 chars)' : 'Password'}
+                placeholder="Password"
                 value={password}
                 onChangeText={t => { setPassword(t); if (touched.password) handleBlur('password'); }}
                 onBlur={() => handleBlur('password')}
@@ -580,28 +708,29 @@ export default function AuthScreen() {
             {/* Terms — register only */}
             {mode === 'register' && (
               <View>
-                <TouchableOpacity
-                  style={s.termsRow}
-                  onPress={() => {
-                    setTermsAccepted(v => !v);
-                    setTouched(prev => ({ ...prev, terms: true }));
-                    setFieldErrors(prev => ({ ...prev, terms: undefined }));
-                  }}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: termsAccepted }}
-                  accessibilityLabel="Accept terms and conditions"
-                >
-                  {termsAccepted
-                    ? <CheckSquare size={20} color={C.violet600} />
-                    : <Square size={20} color={showErr('terms') ? C.red600 : C.gray400} />
-                  }
+                <View style={s.termsRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTermsAccepted(v => !v);
+                      setTouched(prev => ({ ...prev, terms: true }));
+                      setFieldErrors(prev => ({ ...prev, terms: undefined }));
+                    }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: termsAccepted }}
+                    accessibilityLabel="Accept terms and conditions"
+                  >
+                    {termsAccepted
+                      ? <CheckSquare size={20} color={C.violet600} />
+                      : <Square size={20} color={showErr('terms') ? C.red600 : C.gray400} />
+                    }
+                  </TouchableOpacity>
                   <Text style={s.termsTxt}>
                     I agree to the{' '}
-                    <Text style={s.termsLink}>Terms of Service</Text>
+                    <Text style={s.termsLink} onPress={() => router.push('/legal/terms')}>Terms of Service</Text>
                     {' '}and{' '}
-                    <Text style={s.termsLink}>Privacy Policy</Text>
+                    <Text style={s.termsLink} onPress={() => router.push('/legal/privacy')}>Privacy Policy</Text>
                   </Text>
-                </TouchableOpacity>
+                </View>
                 {showErr('terms') && <Text style={s.fieldError}>{showErr('terms')}</Text>}
               </View>
             )}
@@ -637,9 +766,12 @@ export default function AuthScreen() {
               <TouchableOpacity style={s.socialBtn} onPress={() => promptGithubAsync()} disabled={loading} accessibilityLabel="Sign in with GitHub">
                 <FontAwesome name="github" size={22} color={C.gray700} />
               </TouchableOpacity>
-              <TouchableOpacity style={s.socialBtn} onPress={() => promptFacebookAsync()} disabled={loading} accessibilityLabel="Sign in with Facebook">
-                <Text style={s.socialIcon}>f</Text>
-              </TouchableOpacity>
+              {/* Facebook hidden until App ID is configured */}
+              {Platform.OS === 'web' && (
+                <TouchableOpacity style={s.socialBtn} onPress={() => promptFacebookAsync()} disabled={loading} accessibilityLabel="Sign in with Facebook">
+                  <Text style={s.socialIcon}>f</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={s.switchRow}>
@@ -665,6 +797,11 @@ function Field({
   borderColor?: string;
   label?: string;
 }) {
+  const { C } = useTheme();
+  const s = useMemo(() => StyleSheet.create({
+    inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: C.gray200, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white, gap: 10 },
+    fieldError: { color: C.red600, fontSize: 12, marginTop: 4, marginLeft: 4 },
+  }), [C]);
   return (
     <View>
       <View style={[s.inputWrap, { borderColor: borderColor ?? (error ? C.red600 : C.gray200) }]}>
@@ -675,50 +812,3 @@ function Field({
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  screen:         { flex: 1, backgroundColor: C.gray50 },
-  content:        { padding: 20, paddingBottom: 40 },
-  backBtn:        { padding: 8, marginBottom: 16, alignSelf: 'flex-start', backgroundColor: C.white, borderRadius: 12 },
-  header:         { alignItems: 'center', marginBottom: 32 },
-  logoText:       { fontSize: 36, fontWeight: '700', color: C.violet600, marginBottom: 8 },
-  tagline:        { fontSize: 15, color: C.gray500 },
-  card:           { backgroundColor: C.white, borderRadius: 24, padding: 24, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 16, elevation: 4 },
-  form:           { gap: 12 },
-  sectionNote:    { fontSize: 14, color: C.gray500, textAlign: 'center', lineHeight: 20 },
-  inputWrap:      { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: C.gray200, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: C.white, gap: 10 },
-  input:          { flex: 1, fontSize: 15, color: C.gray900 },
-  inputError:     { color: C.red600 },
-  fieldError:     { color: C.red600, fontSize: 12, marginTop: 4, marginLeft: 4 },
-  forgotBtn:      { alignSelf: 'flex-start' },
-  forgotTxt:      { color: C.violet600, fontSize: 13 },
-  errorTxt:       { color: C.red600, fontSize: 13, textAlign: 'center' },
-  successTxt:     { color: C.emerald600, fontSize: 13, textAlign: 'center' },
-  primaryBtn:     { backgroundColor: C.violet600, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
-  primaryBtnTxt:  { color: C.white, fontWeight: '700', fontSize: 16 },
-  dividerRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  divider:        { flex: 1, height: 1, backgroundColor: C.gray200 },
-  dividerTxt:     { fontSize: 12, color: C.gray400 },
-  socialRow:      { flexDirection: 'row', justifyContent: 'center', gap: 16 },
-  socialBtn:      { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: C.gray200, alignItems: 'center', justifyContent: 'center' },
-  socialIcon:     { fontSize: 18, fontWeight: '700', color: C.gray700 },
-  switchRow:      { flexDirection: 'row', justifyContent: 'center' },
-  switchTxt:      { fontSize: 14, color: C.gray500 },
-  switchLink:     { fontSize: 14, fontWeight: '700', color: C.violet600 },
-  // OTP
-  otpSection:     { gap: 16, alignItems: 'center' },
-  otpTitle:       { fontSize: 22, fontWeight: '700' },
-  otpSub:         { fontSize: 14, color: C.gray500 },
-  otpRow:         { flexDirection: 'row', gap: 8 },
-  otpBox:         { width: 46, height: 54, borderWidth: 2, borderColor: C.gray200, borderRadius: 12, fontSize: 22, fontWeight: '700', color: C.gray900 },
-  resendBtn:      { marginTop: 4 },
-  resendTxt:      { color: C.violet600, fontSize: 14 },
-  // Password strength
-  strengthRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
-  strengthBar:    { flex: 1, height: 4, borderRadius: 2 },
-  strengthLabel:  { fontSize: 12, fontWeight: '600', minWidth: 48 },
-  // Terms
-  termsRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  termsTxt:       { flex: 1, fontSize: 13, color: C.gray600, lineHeight: 20 },
-  termsLink:      { color: C.violet600, fontWeight: '600' },
-});

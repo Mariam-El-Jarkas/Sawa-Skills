@@ -31,4 +31,18 @@ public class VolunteerSession {
     @OneToOne
     @JoinColumn(name="conversation_id")
     private Conversation groupChat;
+
+    @Builder.Default
+    @Column(name = "status", length = 20)
+    private String status = "PENDING_REVIEW"; // PENDING_REVIEW | APPROVED | REJECTED
+
+    private Integer maxParticipants;
+
+    /** "REMOTE" or "IN_PERSON" */
+    @Builder.Default
+    @Column(name = "location_type", length = 20)
+    private String locationType = "REMOTE";
+
+    @Column(name = "location", length = 255)
+    private String location;
 }

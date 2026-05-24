@@ -1,6 +1,5 @@
 package com.example.sawaskills.dto.chat;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -10,7 +9,17 @@ import lombok.*;
 @AllArgsConstructor
 public class SendMessageRequest {
 
-    @NotBlank(message = "Message content cannot be empty")
     @Size(max = 2000, message = "Message must be under 2000 characters")
     private String content;
+
+    private Long replyToStoryId;
+    private String replyToStoryText;
+    private String replyToStoryMedia;
+
+    private Long sharedPostId;
+    private Long sharedPostAuthorId;
+    private String sharedPostAuthorName;
+    private String sharedPostContent;
+    private String sharedPostImage;
+    private String sharedPostPollOptions;
 }

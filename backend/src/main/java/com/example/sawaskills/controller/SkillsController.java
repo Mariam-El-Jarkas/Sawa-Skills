@@ -95,6 +95,15 @@ public class SkillsController {
         return ResponseEntity.ok(skillsService.getMyWantedSkills(userDetails.getUsername()));
     }
 
+    // ── DELETE /api/skills/my/{id} ────────────────────────────────────────────
+    @DeleteMapping("/my/{id}")
+    public ResponseEntity<Void> deleteUserSkill(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        skillsService.deleteUserSkill(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── PATCH /api/skills/my/{id}/visibility ──────────────────────────────────
     @PatchMapping("/my/{id}/visibility")
     public ResponseEntity<UserSkillResponse> toggleVisibility(

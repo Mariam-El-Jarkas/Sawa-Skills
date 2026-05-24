@@ -1,12 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, Animated, StyleSheet, Platform, DeviceEventEmitter } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, BookOpen, Newspaper, ArrowLeftRight, MessageCircle } from 'lucide-react-native';
 import { Header } from '../../components/Header';
-import { LoginPrompt } from '../../components/LoginPrompt';
 import { useAuth } from '../../contexts/AuthContext';
 import { useChat } from '../../hooks/useChat';
-import { C } from '../../components/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ── Animated tab icon ─────────────────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ interface TabIconProps {
 }
 
 function TabIcon({ Icon, color, focused, label, isCenter }: TabIconProps) {
+  const { C } = useTheme();
   const scale = useRef(new Animated.Value(focused ? 1 : 0.9)).current;
   const labelOpacity = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const pillOpacity = useRef(new Animated.Value(focused ? 1 : 0)).current;
@@ -50,10 +51,10 @@ function TabIcon({ Icon, color, focused, label, isCenter }: TabIconProps) {
   if (isCenter) {
     return (
       <View style={ts.centerWrap}>
-        <Animated.View style={[ts.centerBtn, { transform: [{ scale }] }]}>
+        <Animated.View style={[ts.centerBtn, { backgroundColor: C.violet600, transform: [{ scale }] }]}>
           <Icon size={26} color={focused ? C.white : C.violet200} strokeWidth={2.5} />
         </Animated.View>
-        <Animated.Text style={[ts.centerLabel, { opacity: labelOpacity }]}>
+        <Animated.Text style={[ts.centerLabel, { color: C.violet600, opacity: labelOpacity }]}>
           {label}
         </Animated.Text>
       </View>
@@ -63,7 +64,7 @@ function TabIcon({ Icon, color, focused, label, isCenter }: TabIconProps) {
   return (
     <View style={ts.iconContainer}>
       <Animated.View style={[ts.pillWrap, { opacity: pillOpacity }]}>
-        <View style={ts.pill} />
+        <View style={[ts.pill, { backgroundColor: C.violet600 }]} />
       </Animated.View>
       <Animated.View style={[ts.iconWrap, { transform: [{ scale }] }]}>
         <Icon size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -78,8 +79,14 @@ function TabIcon({ Icon, color, focused, label, isCenter }: TabIconProps) {
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function TabsLayout() {
-  const { showLoginPrompt, isLoggedIn } = useAuth();
+  const { isLoggedIn } = useAuth();
   const { conversations, fetchConversations } = useChat();
+  const { C } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  // Dynamic tab bar dimensions — accounts for home indicator / gesture area on all devices
+  const TAB_HEIGHT = 50 + insets.bottom;
+  const TAB_PADDING_BOTTOM = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
 
   // Fetch conversations on login to compute badge
   useEffect(() => {
@@ -106,11 +113,17 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarStyle: ts.bar,
+          tabBarStyle: [ts.bar, {
+            backgroundColor: C.white,
+            borderTopColor: C.gray200,
+            height: TAB_HEIGHT,
+            paddingBottom: TAB_PADDING_BOTTOM,
+          }],
           tabBarActiveTintColor: C.violet600,
           tabBarInactiveTintColor: C.gray400,
           tabBarShowLabel: false,
           tabBarHideOnKeyboard: true,
+        animation: 'fade',
         }}
       >
         <Tabs.Screen
@@ -152,22 +165,17 @@ export default function TabsLayout() {
               <TabIcon Icon={MessageCircle} color={color} focused={focused} label="Chat" />
             ),
             tabBarBadge: totalUnread > 0 ? (totalUnread > 99 ? '99+' : totalUnread) : undefined,
-            tabBarBadgeStyle: { backgroundColor: C.violet600, color: '#fff', fontSize: 10 },
+            tabBarBadgeStyle: { backgroundColor: C.violet600, color: C.white, fontSize: 10 },
           }}
         />
       </Tabs>
-      {showLoginPrompt && <LoginPrompt />}
     </>
   );
 }
 
 const ts = StyleSheet.create({
   bar: {
-    backgroundColor: C.white,
-    borderTopColor: C.gray100,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 80 : 68,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
     paddingTop: 8,
     elevation: 12,
     shadowColor: '#000',
@@ -192,7 +200,6 @@ const ts = StyleSheet.create({
     width: 32,
     height: 4,
     borderRadius: 2,
-    backgroundColor: C.violet600,
     marginBottom: 2,
   },
   iconWrap: {
@@ -216,11 +223,10 @@ const ts = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: C.violet600,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -18,
-    shadowColor: C.violet600,
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -229,7 +235,6 @@ const ts = StyleSheet.create({
   centerLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: C.violet600,
     marginTop: 2,
     letterSpacing: 0.2,
   },

@@ -5,11 +5,29 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    // Messages that are intentional business-rule errors → 400 Bad Request
+    private static final Set<String> BUSINESS_ERROR_PREFIXES = Set.of(
+        "User not found", "Swap not found", "Session not found", "Listing not found",
+        "You cannot", "You already", "You have already", "You are not", "Only ",
+        "Email already", "A duplicate", "Invalid ", "Required ", "Offered skill",
+        "Wanted skill", "Skill you", "Max ", "Availability must",
+        "A verification request", "You must", "Parent email not found",
+        "Only verified", "Only volunteers", "Too many",
+        "This swap", "This link", "This request",
+        "Pending ", "PENDING_PARENT_APPROVAL",
+        "Password", "OTP ", "Token "
+    );
 
     // Handles @Valid failures — returns the first readable message
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -37,7 +55,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<String> handleRuntimeException(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        String msg = ex.getMessage();
+        boolean isBusinessError = msg != null && BUSINESS_ERROR_PREFIXES.stream()
+                .anyMatch(prefix -> msg.startsWith(prefix) || msg.contains(prefix));
+        if (isBusinessError) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(msg);
+        }
+        log.error("Unexpected server error", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("An unexpected error occurred. Please try again later.");
     }
 
     @ExceptionHandler(Exception.class)

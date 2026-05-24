@@ -11,4 +11,10 @@ public interface ParentApprovalRepository extends JpaRepository<ParentApproval, 
 
     Optional<ParentApproval> findByToken(String token);
 
+    Optional<ParentApproval> findTopByMinorUserIdAndActionTypeAndActionIdOrderByRequestedAtDesc(
+            Long minorUserId, String actionType, Long actionId);
+
+    // Find any PENDING approval for a specific action (used to expire on cancel)
+    Optional<ParentApproval> findTopByActionTypeAndActionIdAndStatusOrderByRequestedAtDesc(
+            String actionType, Long actionId, String status);
 }

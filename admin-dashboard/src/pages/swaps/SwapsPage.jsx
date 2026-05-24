@@ -1,134 +1,69 @@
-import { useState } from 'react'
-import { MessageCircle, XCircle, Star } from 'lucide-react'
-import { PageHeader, Table, SearchBar, ConfirmDialog, Modal } from '../../components/ui'
-import { mockSwaps } from '../../data/mockData'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { XCircle, RefreshCw } from 'lucide-react'
+import { PageHeader, Table, SearchBar, ConfirmDialog, AlertBanner } from '../../components/ui'
+import { adminApi } from '../../api/adminApi'
+import { useAuthStore } from '../../store/authStore'
 import clsx from 'clsx'
 
-const STATUS_STYLES = {
-  active: 'badge-blue', completed: 'badge-green', pending: 'badge-yellow', disputed: 'badge-red',
-}
-
-const mockReviews = [
-  { swapId: 'SW002', author: 'Maya Khalil', target: 'Omar Tabbara', rating: 4.8, text: 'Amazing photography session, very professional and patient teacher!', date: '2026-03-10' },
-  { swapId: 'SW002', author: 'Omar Tabbara', target: 'Maya Khalil', rating: 4.5, text: 'Great Arabic tutor, clear explanations. Would swap again!', date: '2026-03-10' },
-]
+const STATUS_BADGE = { ACTIVE: 'badge-blue', COMPLETED: 'badge-green', PENDING: 'badge-yellow', REJECTED: 'badge-red', PENDING_PARENT_APPROVAL: 'badge-yellow' }
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString() : '—'
 
 export default function SwapsPage() {
+  const { token } = useAuthStore()
+  const [swaps, setSwaps] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [confirm, setConfirm] = useState(null)
-  const [reviewsModal, setReviewsModal] = useState(null)
-  const swapReviews = reviewsModal ? mockReviews.filter(r => r.swapId === reviewsModal) : []
+  const [actionLoading, setActionLoading] = useState(false)
+  const debounceRef = useRef(null)
 
-  const filtered = mockSwaps.filter(s =>
-    (filter === 'all' || s.status === filter) &&
-    (s.user1.toLowerCase().includes(search.toLowerCase()) || s.user2.toLowerCase().includes(search.toLowerCase()))
-  )
+  const load = useCallback(async (s, f) => {
+    if (!token) return
+    try { setLoading(true); setError(null); setSwaps(await adminApi.getSwaps(token, { search: s, status: f }) || []) }
+    catch (e) { setError(e.message) } finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { if (token) load('', 'all') }, [token, load])
+
+  const handleSearch = (v) => { setSearch(v); clearTimeout(debounceRef.current); debounceRef.current = setTimeout(() => load(v, filter), 300) }
+  const doAction = async (fn) => { try { setActionLoading(true); await fn(); setConfirm(null); await load(search, filter) } catch (e) { alert(`Failed: ${e.message}`) } finally { setActionLoading(false) } }
+
+  const counts = { ACTIVE: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 }
+  swaps.forEach(s => { if (counts[s.status] !== undefined) counts[s.status]++ })
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Skill Exchanges" subtitle="Monitor ongoing and completed skill swaps between users" />
-
+      <PageHeader title="Skill Exchanges" subtitle="Monitor ongoing and completed skill swaps" actions={<button className="btn-secondary text-sm" onClick={() => load(search, filter)}><RefreshCw size={14} className="inline mr-1" />Refresh</button>} />
+      {error && <AlertBanner type="error" message={error} onRetry={() => load(search, filter)} />}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: 'Active', count: mockSwaps.filter(s => s.status === 'active').length, color: 'text-blue-600' },
-          { label: 'Completed', count: mockSwaps.filter(s => s.status === 'completed').length, color: 'text-green-600' },
-          { label: 'Pending', count: mockSwaps.filter(s => s.status === 'pending').length, color: 'text-yellow-600' },
-          { label: 'Disputed', count: mockSwaps.filter(s => s.status === 'disputed').length, color: 'text-red-600' },
-        ].map(({ label, count, color }) => (
-          <div key={label} className="card p-4 text-center">
-            <p className={clsx('text-2xl font-bold', color)}>{count}</p>
-            <p className="text-sm text-gray-500 mt-1">{label}</p>
-          </div>
+        {[['Active', counts.ACTIVE, 'text-blue-600'], ['Completed', counts.COMPLETED, 'text-green-600'], ['Pending', counts.PENDING, 'text-yellow-600'], ['Rejected', counts.REJECTED, 'text-red-600']].map(([label, count, color]) => (
+          <div key={label} className="card p-4 text-center"><p className={clsx('text-2xl font-bold', color)}>{loading ? '…' : count}</p><p className="text-sm text-gray-500 mt-1">{label}</p></div>
         ))}
       </div>
-
       <div className="card p-4 flex flex-wrap gap-3">
-        <SearchBar value={search} onChange={v => setSearch(v)} placeholder="Search by user name..." />
-        <select className="input w-36" value={filter} onChange={e => setFilter(e.target.value)}>
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="completed">Completed</option>
-          <option value="pending">Pending</option>
-          <option value="disputed">Disputed</option>
+        <SearchBar value={search} onChange={handleSearch} placeholder="Search by user name..." />
+        <select className="input w-36" value={filter} onChange={e => { setFilter(e.target.value); load(search, e.target.value) }}>
+          <option value="all">All Status</option><option value="ACTIVE">Active</option><option value="COMPLETED">Completed</option><option value="PENDING">Pending</option><option value="REJECTED">Rejected</option>
         </select>
       </div>
-
       <div className="card">
-        <Table headers={['Swap ID', 'User 1', 'User 2', 'Skills', 'Progress', 'Ratings', 'Status', 'Reports', 'Actions']} empty={filtered.length === 0}>
-          {filtered.map(swap => (
+        <Table headers={['ID', 'Requester', 'Receiver', 'Skills', 'Status', 'Date', 'Actions']} empty={!loading && swaps.length === 0} loading={loading}>
+          {swaps.map(swap => (
             <tr key={swap.id} className="table-row">
-              <td className="table-td text-xs text-gray-400">{swap.id}</td>
-              <td className="table-td font-medium text-gray-800">{swap.user1}</td>
-              <td className="table-td font-medium text-gray-800">{swap.user2}</td>
-              <td className="table-td">
-                <div className="text-xs space-y-1">
-                  <span className="badge-purple badge">{swap.skill1}</span>
-                  <span className="text-gray-400 mx-1">⇄</span>
-                  <span className="badge-blue badge">{swap.skill2}</span>
-                </div>
-              </td>
-              <td className="table-td">
-                <div className="flex items-center gap-2">
-                  <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary-600 rounded-full" style={{ width: `${swap.progress}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-500">{swap.progress}%</span>
-                </div>
-              </td>
-              <td className="table-td text-xs">
-                {swap.rating1 || swap.rating2 ? (
-                  <div className="space-y-0.5">
-                    {swap.rating1 && <div className="flex items-center gap-1"><Star size={10} className="text-yellow-400 fill-yellow-400" />{swap.rating1}</div>}
-                    {swap.rating2 && <div className="flex items-center gap-1"><Star size={10} className="text-yellow-400 fill-yellow-400" />{swap.rating2}</div>}
-                  </div>
-                ) : <span className="text-gray-400">—</span>}
-              </td>
-              <td className="table-td"><span className={clsx('badge', STATUS_STYLES[swap.status])}>{swap.status}</span></td>
-              <td className="table-td">{swap.reports > 0 ? <span className="badge-red badge">{swap.reports}</span> : <span className="text-gray-400">0</span>}</td>
-              <td className="table-td">
-                <div className="flex items-center gap-1">
-                  {swap.status === 'completed' && mockReviews.some(r => r.swapId === swap.id) && (
-                    <button onClick={() => setReviewsModal(swap.id)} className="px-2 py-1 text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-colors flex items-center gap-1">
-                      <Star size={11} /> Reviews
-                    </button>
-                  )}
-                  <button className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Message users"><MessageCircle size={15} /></button>
-                  {swap.status === 'disputed' && (
-                    <button onClick={() => setConfirm({ msg: `Cancel swap ${swap.id}?`, action: () => {}, danger: true })} className="p-1.5 hover:bg-red-50 rounded text-red-600"><XCircle size={15} /></button>
-                  )}
-                </div>
-              </td>
+              <td className="table-td text-xs text-gray-400">#{swap.id}</td>
+              <td className="table-td"><p className="font-medium text-gray-800 text-sm">{swap.requesterName}</p><p className="text-xs text-gray-400">{swap.requesterEmail}</p></td>
+              <td className="table-td"><p className="font-medium text-gray-800 text-sm">{swap.receiverName}</p><p className="text-xs text-gray-400">{swap.receiverEmail}</p></td>
+              <td className="table-td"><div className="text-xs space-y-1"><span className="badge badge-purple">{swap.offeredSkill || '—'}</span><span className="text-gray-400 mx-1">⇄</span><span className="badge badge-blue">{swap.wantedSkill || '—'}</span></div></td>
+              <td className="table-td"><span className={clsx('badge', STATUS_BADGE[swap.status] ?? 'badge-gray')}>{(swap.status ?? '').toLowerCase()}</span></td>
+              <td className="table-td text-xs text-gray-500">{fmtDate(swap.createdAt)}</td>
+              <td className="table-td">{!['COMPLETED', 'REJECTED'].includes(swap.status) && <button onClick={() => setConfirm({ msg: `Cancel swap #${swap.id}?`, danger: true, onConfirm: () => doAction(() => adminApi.cancelSwap(token, swap.id)) })} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Cancel"><XCircle size={15} /></button>}</td>
             </tr>
           ))}
         </Table>
       </div>
-
-      {reviewsModal && (
-        <Modal title="User Reviews" onClose={() => setReviewsModal(null)}>
-          <div className="space-y-4">
-            {swapReviews.map((r, i) => (
-              <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-semibold text-gray-900 text-sm">{r.author}</span>
-                    <span className="text-gray-400 text-xs mx-2">→</span>
-                    <span className="text-gray-600 text-sm">{r.target}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="text-yellow-400 fill-yellow-400" />
-                    <span className="font-bold text-gray-800 text-sm">{r.rating}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-700 italic">"{r.text}"</p>
-                <p className="text-xs text-gray-400 mt-2">{r.date}</p>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-
-      {confirm && <ConfirmDialog message={confirm.msg} danger={confirm.danger} onConfirm={() => { confirm.action(); setConfirm(null) }} onCancel={() => setConfirm(null)} />}
+      {confirm && <ConfirmDialog message={confirm.msg} danger={confirm.danger} loading={actionLoading} onConfirm={confirm.onConfirm} onCancel={() => setConfirm(null)} />}
     </div>
   )
 }

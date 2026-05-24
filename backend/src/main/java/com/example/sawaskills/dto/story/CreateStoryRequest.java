@@ -6,4 +6,7 @@ import lombok.*;
 public class CreateStoryRequest {
     private String textContent;
     private String mediaBase64;
+    private String pollQuestion;
+    private String pollOptions;
+    private int bgIndex;
 }

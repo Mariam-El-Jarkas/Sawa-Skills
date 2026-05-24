@@ -1,10 +1,13 @@
 package com.example.sawaskills.service;
 
 import com.example.sawaskills.dto.verification.VerificationSubmission;
+import com.example.sawaskills.entity.Notification;
 import com.example.sawaskills.entity.User;
 import com.example.sawaskills.entity.VerificationRequest;
+import com.example.sawaskills.repository.NotificationRepository;
 import com.example.sawaskills.repository.UserRepository;
 import com.example.sawaskills.repository.VerificationRequestRepository;
+import com.example.sawaskills.util.MinorUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +33,8 @@ public class VerificationService {
     private final VerificationRequestRepository verificationRequestRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final ParentApprovalService parentApprovalService;
+    private final NotificationRepository notificationRepository;
 
     @Value("${app.uploads.dir:uploads}")
     private String uploadsDir;
@@ -42,13 +47,18 @@ public class VerificationService {
         String typeStr = submission.getType() != null ? submission.getType().toUpperCase() : "";
         log.info("SUBMISSION START: user={}, type={}", email, typeStr);
 
-        // Check for duplicates
-        verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), typeStr)
-                .ifPresent(req -> {
-                    if (req.getStatus().startsWith("PENDING")) {
-                        throw new RuntimeException("A verification request of this type is already pending review.");
-                    }
-                });
+        // Check for duplicates — skip for minor users applying for Volunteer since they
+        // go through the ParentApproval gate (not a direct VerificationRequest submission).
+        boolean minorApplyingForVolunteer = "VOLUNTEER".equals(typeStr)
+                && MinorUtils.isMinor(user, verificationRequestRepository);
+        if (!minorApplyingForVolunteer) {
+            verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), typeStr)
+                    .ifPresent(req -> {
+                        if (req.getStatus().startsWith("PENDING")) {
+                            throw new RuntimeException("A verification request of this type is already pending review.");
+                        }
+                    });
+        }
 
         if ("VOLUNTEER".equals(typeStr)) {
             boolean isAdult = verificationRequestRepository.findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "ADULT")
@@ -57,6 +67,17 @@ public class VerificationService {
                     .map(req -> "APPROVED".equals(req.getStatus())).orElse(false);
             if (!isAdult && !isMinor) {
                 throw new RuntimeException("You must be a verified Minor or Adult before applying for Volunteer.");
+            }
+            // Minor users require parental approval before the application goes to admin
+            if (isMinor && !isAdult) {
+                String parentEmail = MinorUtils.parentEmail(user, verificationRequestRepository);
+                String additionalData = (submission.getWhy() != null ? submission.getWhy() : "") + "|||"
+                        + (submission.getExperience() != null ? submission.getExperience() : "") + "|||"
+                        + (submission.getSkillsToShare() != null ? submission.getSkillsToShare() : "");
+                String context = "Apply to become a Volunteer on SawaSkills";
+                parentApprovalService.requestApproval(user, parentEmail, "VOLUNTEER_APPLY",
+                        null, context, additionalData);
+                throw new RuntimeException("PENDING_PARENT_APPROVAL:Your application has been sent to your parent for approval. Once they approve, it will be submitted for review.");
             }
         }
 
@@ -108,6 +129,13 @@ public class VerificationService {
             if (request.getIdFrontImage() == null || request.getSelfieImage() == null) {
                 throw new RuntimeException("Required images missing for Adult Verification.");
             }
+        }
+
+        // Backfill gender on the User if not already set (e.g. Google sign-in users)
+        if (submission.getGender() != null && !submission.getGender().isBlank()
+                && user.getGender() == null) {
+            user.setGender(submission.getGender().toUpperCase());
+            userRepository.save(user);
         }
 
         VerificationRequest saved = verificationRequestRepository.save(request);
@@ -182,13 +210,53 @@ public class VerificationService {
     public void updateStatus(Long id, String status) {
         VerificationRequest request = verificationRequestRepository.findById(id).orElseThrow();
         request.setStatus(status);
+
+        User user = request.getUser();
+        String type = request.getType(); // ADULT | MINOR | VOLUNTEER
+
         if ("APPROVED".equals(status)) {
-            User user = request.getUser();
-            if ("ADULT".equals(request.getType()) || "MINOR".equals(request.getType())) {
+            if ("ADULT".equals(type) || "MINOR".equals(type)) {
                 user.setVerified(true);
+                userRepository.save(user);
             }
-            userRepository.save(user);
+            if ("VOLUNTEER".equals(type)) {
+                user.setRole("VOLUNTEER");
+                userRepository.save(user);
+            }
+            sendVerificationNotification(user, type, true);
+        } else if ("REJECTED".equals(status)) {
+            sendVerificationNotification(user, type, false);
         }
+
         verificationRequestRepository.save(request);
+    }
+
+    private void sendVerificationNotification(User user, String type, boolean approved) {
+        String notifType = approved ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED";
+
+        String message = switch (type) {
+            case "ADULT" -> approved
+                ? "🎉 Your Adult (16+) verification has been approved! You now have full access to all features."
+                : "Your Adult verification was not approved. Please contact support if you believe this is a mistake.";
+            case "MINOR" -> approved
+                ? "✅ Your Minor verification has been approved! You now have access to all features."
+                : "Your Minor verification was not approved. Please contact support for more details.";
+            case "VOLUNTEER" -> approved
+                ? "⭐ Congratulations! Your Volunteer application has been approved. You can now create volunteer sessions and offer free skills."
+                : "Your Volunteer application was not approved at this time. You may apply again in the future.";
+            default -> approved
+                ? "Your verification has been approved."
+                : "Your verification was not approved.";
+        };
+
+        Notification notification = Notification.builder()
+                .user(user)
+                .type(notifType)
+                .message(message)
+                .read(false)
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
+
+        notificationRepository.save(notification);
     }
 }

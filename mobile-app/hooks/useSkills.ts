@@ -40,6 +40,15 @@ export function useSkills(): SkillsState & SkillsActions {
   const [hasMore, setHasMore] = useState(false);
   const [isMyDataLoading, setIsMyDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear user-specific state on logout so previous user's data is never visible to next user
+  useEffect(() => {
+    if (!token) {
+      setMyListings([]);
+      setMyOffered([]);
+      setMyWanted([]);
+    }
+  }, [token]);
   const currentPageRef = useRef(0);
   const currentParamsRef = useRef<BrowseParams>({});
 

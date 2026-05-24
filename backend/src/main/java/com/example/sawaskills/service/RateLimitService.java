@@ -30,10 +30,11 @@ public class RateLimitService {
     public boolean isAllowed(String action, String key) {
         String bucketKey = action + ":" + key;
         Bucket bucket = buckets.computeIfAbsent(bucketKey, k -> switch (action) {
-            case "login"           -> newBucket(10, Duration.ofMinutes(15)); // 10 attempts per 15 min
-            case "register"        -> newBucket(5,  Duration.ofHours(1));    // 5 registrations per hour
-            case "otp"             -> newBucket(5,  Duration.ofMinutes(10)); // 5 OTP resends per 10 min
-            case "forgot-password" -> newBucket(3,  Duration.ofHours(1));    // 3 resets per hour
+            case "login"           -> newBucket(10, Duration.ofMinutes(15)); // 10 attempts / 15 min
+            case "register"        -> newBucket(5,  Duration.ofHours(1));    // 5 registrations / hour
+            case "otp"             -> newBucket(5,  Duration.ofMinutes(10)); // 5 OTP resends / 10 min
+            case "forgot-password" -> newBucket(3,  Duration.ofHours(1));    // 3 resets / hour
+            case "swap-create"     -> newBucket(5,  Duration.ofMinutes(1));  // 5 swaps / min
             default                -> newBucket(20, Duration.ofMinutes(1));
         });
         return bucket.tryConsume(1);

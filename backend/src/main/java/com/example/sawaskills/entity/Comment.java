@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name="comments")
@@ -29,5 +31,13 @@ public class Comment {
     @ManyToOne
     @JoinColumn(name="post_id")
     private Post post;
+
+    @ManyToOne
+    @JoinColumn(name="parent_comment_id")
+    private Comment parentComment;
+
+    @OneToMany(mappedBy = "parentComment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Comment> replies = new ArrayList<>();
 
 }

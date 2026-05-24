@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface VolunteerSessionRepository extends JpaRepository<VolunteerSession, Long> {
+    java.util.Optional<VolunteerSession> findByGroupChatId(Long groupChatId);
 }

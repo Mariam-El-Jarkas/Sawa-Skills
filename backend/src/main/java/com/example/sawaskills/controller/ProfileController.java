@@ -31,8 +31,26 @@ public class ProfileController {
     // ── GET /api/profile/{id} ─────────────────────────────────────────────────
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProfileResponse> getPublicProfile(@PathVariable Long id) {
-        return ResponseEntity.ok(profileService.getPublicProfile(id));
+    public ResponseEntity<ProfileResponse> getPublicProfile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String viewerEmail = userDetails != null ? userDetails.getUsername() : null;
+        return ResponseEntity.ok(profileService.getPublicProfile(id, viewerEmail));
+    }
+
+    // ── PATCH /api/profile/privacy ────────────────────────────────────────────
+
+    @PatchMapping("/privacy")
+    public ResponseEntity<Void> updatePrivacy(
+            @RequestBody UpdatePrivacyRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        profileService.updatePrivacy(
+                userDetails.getUsername(),
+                request.isPublicProfile(),
+                request.isSwapNotifications(),
+                request.isMessageNotifications(),
+                request.isSkillNewsNotifications());
+        return ResponseEntity.ok().build();
     }
 
     // ── PATCH /api/profile/bio ────────────────────────────────────────────────
@@ -142,6 +160,32 @@ public class ProfileController {
         }
         profileService.updateLocation(userDetails.getUsername(), city.trim());
         return ResponseEntity.ok(Map.of("message", "Location updated successfully"));
+    }
+
+    // ── Connection Requests ──────────────────────────────────────────────────
+
+    @PostMapping("/{id}/connect")
+    public ResponseEntity<Map<String, String>> sendConnectionRequest(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        profileService.sendConnectionRequest(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Connection request sent"));
+    }
+
+    @PostMapping("/connections/{id}/approve")
+    public ResponseEntity<Map<String, String>> approveConnection(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        profileService.approveConnection(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Connection approved"));
+    }
+
+    @DeleteMapping("/connections/{id}")
+    public ResponseEntity<Void> removeConnection(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        profileService.removeConnection(userDetails.getUsername(), id);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping

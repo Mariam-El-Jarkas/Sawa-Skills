@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PostService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PostService.class);
+
     @Value("${app.uploads.dir:uploads}")
     private String uploadsDir;
 
@@ -46,6 +48,13 @@ public class PostService {
         return postRepository.findByVisibilityOrderByCreatedAtDesc(Post.PostVisibility.EVERYONE).stream()
                 .map(p -> toPostResponse(p, userId, false))
                 .collect(Collectors.toList());
+    }
+
+    public PostResponse getPostById(String email, Long postId) {
+        Long userId = resolveUserId(email);
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Post not found"));
+        return toPostResponse(post, userId, false);
     }
 
     // ── Following feed (connections + own posts) ──────────────────────────────
@@ -176,8 +185,20 @@ public class PostService {
             throw new RuntimeException("Post must have content, image, poll, or document");
         }
         
-        String imageUrl = saveImage(request.getImageBase64(), "post-images", "post_" + user.getId());
-        String documentUrl = saveDocument(request.getDocumentBase64(), "post-docs", "doc_" + user.getId());
+        String uploadedImageUrl = saveImage(request.getImageBase64(), "post-images", "post_" + user.getId());
+        String uploadedDocUrl   = saveDocument(request.getDocumentBase64(), "post-docs", "doc_" + user.getId());
+
+        // When reposting, inherit the original post's media if the reposter didn't upload new media
+        String imageUrl    = uploadedImageUrl;
+        String documentUrl = uploadedDocUrl;
+        if (request.getSharedPostId() != null) {
+            postRepository.findById(request.getSharedPostId()).ifPresent(orig -> { /* just for existence check */ });
+            Post orig = postRepository.findById(request.getSharedPostId()).orElse(null);
+            if (orig != null) {
+                if (imageUrl == null)    imageUrl    = orig.getImageUrl();
+                if (documentUrl == null) documentUrl = orig.getDocumentUrl();
+            }
+        }
         
         Post.PostVisibility visibility = Post.PostVisibility.EVERYONE;
         if ("FOLLOWERS".equalsIgnoreCase(request.getVisibility())) {
@@ -535,9 +556,14 @@ public class PostService {
         if (base64 == null || base64.isBlank()) return null;
         try {
             String[] parts = base64.split(",", 2);
-            if (parts.length < 2) return null;
-            byte[] bytes = java.util.Base64.getDecoder().decode(parts[1]);
-            // Determine extension from base64 if possible, else default to pdf/docx?
+            if (parts.length < 2) {
+                log.warn("saveDocument: no comma separator found in base64 string (length={})", base64.length());
+                return null;
+            }
+            // Use MIME decoder: tolerates line breaks (\n every 76 chars) from iOS encoders
+            String rawBase64 = parts[1].replaceAll("\\s", "");
+            byte[] bytes = java.util.Base64.getMimeDecoder().decode(rawBase64);
+
             String ext = "pdf";
             if (parts[0].contains("application/pdf")) ext = "pdf";
             else if (parts[0].contains("word")) ext = "docx";
@@ -547,8 +573,10 @@ public class PostService {
             Path dir = Paths.get(uploadsDir, subDir);
             Files.createDirectories(dir);
             Files.write(dir.resolve(filename), bytes);
+            log.info("saveDocument: saved {} bytes to {}", bytes.length, filename);
             return "/uploads/" + subDir + "/" + filename;
         } catch (Exception e) {
+            log.error("saveDocument failed (subDir={}, prefix={}): {}", subDir, prefix, e.getMessage(), e);
             return null;
         }
     }

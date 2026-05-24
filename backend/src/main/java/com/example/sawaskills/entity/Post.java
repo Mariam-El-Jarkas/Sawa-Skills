@@ -32,6 +32,10 @@ public class Post {
 
     private LocalDateTime createdAt;
 
+    @Builder.Default
+    @Column(name = "admin_hidden")
+    private boolean adminHidden = false;
+
     @ManyToOne
     @JoinColumn(name="author_id")
     private User author;

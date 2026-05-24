@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from './api';
+import { apiGet, apiPost, apiPatch, apiDelete } from './api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,15 @@ export interface ChatMessage {
   isMe: boolean;
   senderId: number;
   senderName: string;
+  replyToStoryId?: number | null;
+  replyToStoryText?: string | null;
+  replyToStoryMedia?: string | null;
+  sharedPostId?: number | null;
+  sharedPostAuthorId?: number | null;
+  sharedPostAuthorName?: string | null;
+  sharedPostContent?: string | null;
+  sharedPostImage?: string | null;
+  sharedPostPollOptions?: string | null;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -40,6 +49,10 @@ export interface ChatMessage {
 export const chatService = {
   getConversations(token: string): Promise<Conversation[]> {
     return apiGet<Conversation[]>('/api/chat/conversations', token);
+  },
+
+  searchConversations(query: string, token: string): Promise<Conversation[]> {
+    return apiGet<Conversation[]>(`/api/chat/search?query=${encodeURIComponent(query)}`, token);
   },
 
   startConversation(otherUserId: number, token: string): Promise<Conversation> {
@@ -50,8 +63,29 @@ export const chatService = {
     return apiGet<ChatMessage[]>(`/api/chat/conversations/${conversationId}/messages`, token);
   },
 
-  sendMessage(conversationId: number, content: string, token: string): Promise<ChatMessage> {
-    return apiPost<ChatMessage>(`/api/chat/conversations/${conversationId}/messages`, { content }, token);
+  sendMessage(
+    conversationId: number,
+    content: string,
+    token: string,
+    storyReply?: { id: number; text: string | null; media: string | null },
+    postShare?: { id: number; authorId: number; authorName: string; content: string; imageUrl: string | null; pollOptions?: string | null }
+  ): Promise<ChatMessage> {
+    return apiPost<ChatMessage>(`/api/chat/conversations/${conversationId}/messages`, {
+      content,
+      ...(storyReply && {
+        replyToStoryId: storyReply.id,
+        replyToStoryText: storyReply.text,
+        replyToStoryMedia: storyReply.media,
+      }),
+      ...(postShare && {
+        sharedPostId: postShare.id,
+        sharedPostAuthorId: postShare.authorId,
+        sharedPostAuthorName: postShare.authorName,
+        sharedPostContent: postShare.content,
+        sharedPostImage: postShare.imageUrl,
+        sharedPostPollOptions: postShare.pollOptions ?? null,
+      }),
+    }, token);
   },
 
   markRead(conversationId: number, token: string): Promise<void> {
@@ -60,5 +94,17 @@ export const chatService = {
   
   updatePermissions(conversationId: number, everyoneCanMessage: boolean, token: string): Promise<void> {
     return apiPatch<void>(`/api/chat/conversations/${conversationId}/permissions`, { everyoneCanMessage }, token);
+  },
+
+  clearConversation(conversationId: number, token: string): Promise<void> {
+    return apiDelete<void>(`/api/chat/conversations/${conversationId}`, token);
+  },
+
+  clearMessages(conversationId: number, token: string): Promise<void> {
+    return apiDelete<void>(`/api/chat/conversations/${conversationId}/messages`, token);
+  },
+
+  leaveGroup(conversationId: number, token: string): Promise<void> {
+    return apiPost<void>(`/api/chat/conversations/${conversationId}/leave`, {}, token);
   },
 };

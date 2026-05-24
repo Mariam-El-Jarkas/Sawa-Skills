@@ -1,33 +1,82 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Modal, ScrollView, FlatList } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Modal, FlatList, ScrollView } from 'react-native';
 import { ArrowLeft, Check, ChevronDown, Globe, MapPin } from 'lucide-react-native';
-import { C } from '../theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface Props {
   addMode: 'listing' | 'offer' | 'want';
   onBack: () => void;
   isSaving: boolean;
   formErrors: Record<string, string>;
-  newListing: { offer: string; want: string; location: string; availability: 'Remote' | 'On-site' };
-  onNewListingChange: (field: string, value: string) => void;
+  newListing: { offer: string; want: string; location: string; availability: 'Remote' | 'On-site'; isFree?: boolean };
+  onNewListingChange: (field: string, value: string | boolean) => void;
   onSubmitListing: () => void;
   newSkill: { name: string; description: string; category: string };
   onNewSkillChange: (field: string, value: string) => void;
   onSubmitSkill: () => void;
+  isVolunteer?: boolean;
 }
 
+const SKILL_CATEGORIES = ['Tech', 'Cooking', 'Music', 'Languages', 'Art', 'Sports', 'Education', 'Business', 'Health', 'Other'];
+
 const LEBANON_LOCATIONS = [
-  'Beirut', 'Tripoli', 'Sidon', 'Tyre', 'Nabatieh', 'Zahle', 
-  'Byblos (Jbeil)', 'Jounieh', 'Baabda', 'Aley', 'Chouf', 
+  'Beirut', 'Tripoli', 'Sidon', 'Tyre', 'Nabatieh', 'Zahle',
+  'Byblos (Jbeil)', 'Jounieh', 'Baabda', 'Aley', 'Chouf',
   'Batroun', 'Zgharta', 'Bsharri', 'Keserwan', 'Akkar'
 ].sort();
 
 export function AddSkillListingView({
   addMode, onBack, isSaving, formErrors,
   newListing, onNewListingChange, onSubmitListing,
-  newSkill, onNewSkillChange, onSubmitSkill
+  newSkill, onNewSkillChange, onSubmitSkill,
+  isVolunteer = false,
 }: Props) {
+  const { C } = useTheme();
   const [showLocPicker, setShowLocPicker] = useState(false);
+
+  const s = useMemo(() => StyleSheet.create({
+    addView: { gap: 16 },
+    addHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    backBtn: { padding: 8, backgroundColor: C.gray200, borderRadius: 20 },
+    addTitle: { fontSize: 17, fontWeight: '700', color: C.gray900, flex: 1 },
+    addForm: { backgroundColor: C.gray100, borderRadius: 20, padding: 20, gap: 20, borderWidth: 1, borderColor: C.gray200 },
+    section: { gap: 6 },
+    fieldLabel: { fontSize: 10, fontWeight: '700', color: C.gray400, letterSpacing: 1 },
+    fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, fontWeight: '600', color: C.gray900 },
+    fieldInputError: { borderWidth: 1.5, borderColor: C.red600, backgroundColor: C.red50 },
+    fieldError: { fontSize: 11, color: C.red600, marginTop: 2, marginLeft: 4 },
+    textarea: { height: 72, textAlignVertical: 'top' as any },
+    toggleRow: { flexDirection: 'row', gap: 10 },
+    toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: C.gray50, borderWidth: 1, borderColor: C.gray200 },
+    toggleBtnActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
+    toggleBtnTxt: { fontSize: 13, fontWeight: '600', color: C.gray600 },
+    toggleBtnTxtActive: { color: '#fff' },
+    locSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.gray50, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.gray200 },
+    locValue: { fontSize: 14, fontWeight: '600', color: C.gray900 },
+    freeTgl: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: C.gray200, backgroundColor: C.gray50 },
+    freeTglActive: { borderColor: C.violet600, backgroundColor: C.violet50 },
+    freeTglDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: C.gray300 },
+    freeTglDotActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
+    freeTglTxt: { fontSize: 13, fontWeight: '600', color: C.gray500, flex: 1 },
+    freeTglTxtActive: { color: C.violet600 },
+    publishBtn: { backgroundColor: C.violet600, paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+    publishBtnDisabled: { opacity: 0.6 },
+    publishBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14, letterSpacing: 0.5 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: C.gray100, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '70%' as any, paddingBottom: 20 },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: C.gray200 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: C.gray900 },
+    closeBtn: { padding: 4 },
+    closeBtnTxt: { color: C.violet600, fontWeight: '600' },
+    locItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18 },
+    locItemTxt: { fontSize: 15, color: C.gray700 },
+    locItemTxtActive: { color: C.violet600, fontWeight: '600' },
+    separator: { height: 1, backgroundColor: C.gray200, marginHorizontal: 18 },
+    catPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.gray100, borderWidth: 1, borderColor: C.gray200 },
+    catPillActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
+    catPillTxt: { fontSize: 13, fontWeight: '500', color: C.gray600 },
+    catPillTxtActive: { color: '#FFFFFF', fontWeight: '600' },
+  }), [C]);
 
   const getTitle = () => {
     if (addMode === 'listing') return 'Create Exchange Listing';
@@ -53,12 +102,14 @@ export function AddSkillListingView({
               <Text style={s.fieldLabel}>AVAILABILITY *</Text>
               <View style={s.toggleRow}>
                 {(['Remote', 'On-site'] as const).map(mode => (
-                  <TouchableOpacity 
-                    key={mode} 
+                  <TouchableOpacity
+                    key={mode}
                     style={[s.toggleBtn, newListing.availability === mode && s.toggleBtnActive]}
                     onPress={() => onNewListingChange('availability', mode)}
                   >
-                    {mode === 'Remote' ? <Globe size={16} color={newListing.availability === mode ? C.white : C.gray500} /> : <MapPin size={16} color={newListing.availability === mode ? C.white : C.gray500} />}
+                    {mode === 'Remote'
+                      ? <Globe size={16} color={newListing.availability === mode ? '#fff' : C.gray500} />
+                      : <MapPin size={16} color={newListing.availability === mode ? '#fff' : C.gray500} />}
                     <Text style={[s.toggleBtnTxt, newListing.availability === mode && s.toggleBtnTxtActive]}>{mode}</Text>
                   </TouchableOpacity>
                 ))}
@@ -68,10 +119,7 @@ export function AddSkillListingView({
             {newListing.availability === 'On-site' && (
               <View style={s.section}>
                 <Text style={s.fieldLabel}>LOCATION *</Text>
-                <TouchableOpacity 
-                  style={[s.locSelector, formErrors.location && s.fieldInputError]} 
-                  onPress={() => setShowLocPicker(true)}
-                >
+                <TouchableOpacity style={[s.locSelector, formErrors.location && s.fieldInputError]} onPress={() => setShowLocPicker(true)}>
                   <Text style={[s.locValue, !newListing.location && { color: C.gray400 }]}>
                     {newListing.location || 'Select an area in Lebanon'}
                   </Text>
@@ -83,27 +131,30 @@ export function AddSkillListingView({
 
             <View style={s.section}>
               <Text style={s.fieldLabel}>I AM OFFERING *</Text>
-              <TextInput
-                style={[s.fieldInput, formErrors.offer && s.fieldInputError]}
-                value={newListing.offer}
-                onChangeText={v => onNewListingChange('offer', v)}
-                placeholder="e.g. Photography lessons"
-                placeholderTextColor={C.gray400}
-              />
+              <TextInput style={[s.fieldInput, formErrors.offer && s.fieldInputError]} value={newListing.offer} onChangeText={v => onNewListingChange('offer', v)} placeholder="e.g. Photography lessons" placeholderTextColor={C.gray400} />
               {formErrors.offer && <Text style={s.fieldError}>{formErrors.offer}</Text>}
             </View>
 
-            <View style={s.section}>
-              <Text style={s.fieldLabel}>I AM LOOKING FOR *</Text>
-              <TextInput
-                style={[s.fieldInput, formErrors.want && s.fieldInputError]}
-                value={newListing.want}
-                onChangeText={v => onNewListingChange('want', v)}
-                placeholder="e.g. Web Design"
-                placeholderTextColor={C.gray400}
-              />
-              {formErrors.want && <Text style={s.fieldError}>{formErrors.want}</Text>}
-            </View>
+            {isVolunteer && (
+              <View style={s.section}>
+                <TouchableOpacity
+                  style={[s.freeTgl, newListing.isFree && s.freeTglActive]}
+                  onPress={() => onNewListingChange('isFree', !newListing.isFree)}
+                >
+                  <View style={[s.freeTglDot, newListing.isFree && s.freeTglDotActive]} />
+                  <Text style={[s.freeTglTxt, newListing.isFree && s.freeTglTxtActive]}>
+                    {newListing.isFree ? '✓ Offering for Free (Community Service)' : 'Offer for Free (Volunteer only)'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!newListing.isFree && (
+              <View style={s.section}>
+                <Text style={s.fieldLabel}>I AM LOOKING FOR *</Text>
+                <TextInput style={[s.fieldInput, formErrors.want && s.fieldInputError]} value={newListing.want} onChangeText={v => onNewListingChange('want', v)} placeholder="e.g. Web Design" placeholderTextColor={C.gray400} />
+                {formErrors.want && <Text style={s.fieldError}>{formErrors.want}</Text>}
+              </View>
+            )}
 
             <TouchableOpacity style={[s.publishBtn, isSaving && s.publishBtnDisabled]} onPress={onSubmitListing} disabled={isSaving}>
               <Text style={s.publishBtnTxt}>{isSaving ? 'Publishing...' : 'Publish Listing'}</Text>
@@ -112,25 +163,24 @@ export function AddSkillListingView({
         ) : (
           <View style={s.section}>
             <Text style={s.fieldLabel}>SKILL NAME *</Text>
-            <TextInput
-              style={[s.fieldInput, formErrors.name ? s.fieldInputError : null]}
-              value={newSkill.name}
-              onChangeText={v => onNewSkillChange('name', v)}
-              placeholder="e.g. Graphic Design"
-              placeholderTextColor={C.gray400}
-              maxLength={100}
-            />
+            <TextInput style={[s.fieldInput, formErrors.name ? s.fieldInputError : null]} value={newSkill.name} onChangeText={v => onNewSkillChange('name', v)} placeholder="e.g. Graphic Design" placeholderTextColor={C.gray400} maxLength={100} />
             {formErrors.name && <Text style={s.fieldError}>{formErrors.name}</Text>}
+            <Text style={[s.fieldLabel, { marginTop: 16 }]}>CATEGORY *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                {SKILL_CATEGORIES.map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[s.catPill, newSkill.category === cat && s.catPillActive]}
+                    onPress={() => onNewSkillChange('category', cat)}
+                  >
+                    <Text style={[s.catPillTxt, newSkill.category === cat && s.catPillTxtActive]}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
             <Text style={[s.fieldLabel, { marginTop: 16 }]}>SHORT DESCRIPTION</Text>
-            <TextInput
-              style={[s.fieldInput, s.textarea, formErrors.description ? s.fieldInputError : null]}
-              value={newSkill.description}
-              onChangeText={v => onNewSkillChange('description', v)}
-              placeholder="Briefly describe..."
-              multiline
-              placeholderTextColor={C.gray400}
-              maxLength={300}
-            />
+            <TextInput style={[s.fieldInput, s.textarea, formErrors.description ? s.fieldInputError : null]} value={newSkill.description} onChangeText={v => onNewSkillChange('description', v)} placeholder="Briefly describe..." multiline placeholderTextColor={C.gray400} maxLength={300} />
             <Text style={[s.fieldLabel, { textAlign: 'right', marginTop: -8 }]}>{newSkill.description.length}/300</Text>
             {formErrors.description && <Text style={s.fieldError}>{formErrors.description}</Text>}
             <TouchableOpacity style={[s.publishBtn, isSaving && s.publishBtnDisabled]} onPress={onSubmitSkill} disabled={isSaving}>
@@ -166,42 +216,3 @@ export function AddSkillListingView({
     </View>
   );
 }
-
-const s = StyleSheet.create({
-  addView: { gap: 16 },
-  addHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  backBtn: { padding: 8, backgroundColor: C.gray100, borderRadius: 20 },
-  addTitle: { fontSize: 17, fontWeight: '700', color: C.gray900, flex: 1 },
-  addForm: { backgroundColor: C.white, borderRadius: 20, padding: 20, gap: 20, borderWidth: 1, borderColor: C.gray100 },
-  section: { gap: 6 },
-  fieldLabel: { fontSize: 10, fontWeight: '700', color: C.gray400, letterSpacing: 1 },
-  fieldInput: { backgroundColor: C.gray50, borderRadius: 12, padding: 12, fontSize: 14, fontWeight: '600', color: C.gray900 },
-  fieldInputError: { borderWidth: 1.5, borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
-  fieldError: { fontSize: 11, color: '#DC2626', marginTop: 2, marginLeft: 4 },
-  textarea: { height: 72, textAlignVertical: 'top' },
-  
-  toggleRow: { flexDirection: 'row', gap: 10 },
-  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: C.gray50, borderWidth: 1, borderColor: C.gray100 },
-  toggleBtnActive: { backgroundColor: C.violet600, borderColor: C.violet600 },
-  toggleBtnTxt: { fontSize: 13, fontWeight: '600', color: C.gray600 },
-  toggleBtnTxtActive: { color: C.white },
-
-  locSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.gray50, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.gray100 },
-  locValue: { fontSize: 14, fontWeight: '600', color: C.gray900 },
-
-  publishBtn: { backgroundColor: C.violet600, paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 8 },
-  publishBtnDisabled: { opacity: 0.6 },
-  publishBtnTxt: { color: C.white, fontWeight: '700', fontSize: 14, letterSpacing: 0.5 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '70%', paddingBottom: 20 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: C.gray100 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: C.gray900 },
-  closeBtn: { padding: 4 },
-  closeBtnTxt: { color: C.violet600, fontWeight: '600' },
-  
-  locItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18 },
-  locItemTxt: { fontSize: 15, color: C.gray700 },
-  locItemTxtActive: { color: C.violet600, fontWeight: '600' },
-  separator: { height: 1, backgroundColor: C.gray50, marginHorizontal: 18 },
-});

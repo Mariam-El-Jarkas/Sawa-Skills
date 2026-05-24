@@ -10,4 +10,5 @@ import java.util.List;
 @Repository
 public interface StoryRepository extends JpaRepository<Story, Long> {
     List<Story> findByExpiresAtAfterOrderByCreatedAtDesc(LocalDateTime now);
+    List<Story> findByUserIdAndExpiresAtAfterOrderByCreatedAtDesc(Long userId, LocalDateTime now);
 }

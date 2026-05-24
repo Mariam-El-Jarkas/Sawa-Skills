@@ -28,6 +28,7 @@ public class SkillsService {
     private final SkillCategoryRepository skillCategoryRepository;
     private final ReviewRepository reviewRepository;
     private final SwapRequestRepository swapRequestRepository;
+    private final VerificationRequestRepository verificationRequestRepository;
 
     // ── Browse listings ───────────────────────────────────────────────────────
 
@@ -74,12 +75,24 @@ public class SkillsService {
     public SkillListingResponse createListing(String email, CreateListingRequest request) {
         User user = findUser(email);
 
+        if (request.isFree()) {
+            boolean isVolunteer = verificationRequestRepository
+                    .findTopByUserIdAndTypeOrderBySubmittedAtDesc(user.getId(), "VOLUNTEER")
+                    .map(r -> "APPROVED".equals(r.getStatus())).orElse(false);
+            if (!isVolunteer) {
+                throw new RuntimeException("Only verified Volunteers can create free listings");
+            }
+        } else if (request.getWantedSkill() == null || request.getWantedSkill().isBlank()) {
+            throw new RuntimeException("Wanted skill is required for non-free listings");
+        }
+
         ExchangeListing listing = ExchangeListing.builder()
                 .owner(user)
                 .offeredSkill(StringUtils.sanitize(request.getOfferedSkill()))
-                .wantedSkill(StringUtils.sanitize(request.getWantedSkill()))
+                .wantedSkill(request.isFree() ? null : StringUtils.sanitize(request.getWantedSkill()))
                 .location(request.getLocation() != null ? StringUtils.sanitize(request.getLocation()) : null)
                 .availability(request.getAvailability())
+                .isFree(request.isFree())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -138,6 +151,19 @@ public class SkillsService {
         User user = findUser(email);
         return userSkillRepository.findByUserIdAndOffering(user.getId(), false)
                 .stream().map(this::toUserSkillResponse).collect(Collectors.toList());
+    }
+
+    // ── Delete user skill ─────────────────────────────────────────────────────
+
+    @Transactional
+    public void deleteUserSkill(String email, Long userSkillId) {
+        User user = findUser(email);
+        UserSkill us = userSkillRepository.findById(userSkillId)
+                .orElseThrow(() -> new RuntimeException("Skill not found"));
+        if (!us.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only delete your own skills");
+        }
+        userSkillRepository.delete(us);
     }
 
     // ── Toggle visibility ─────────────────────────────────────────────────────
@@ -215,8 +241,9 @@ public class SkillsService {
                 .availability(l.getAvailability())
                 .avgRating(Math.round(avgRating * 10.0) / 10.0)
                 .createdAt(l.getCreatedAt() != null ? l.getCreatedAt().toString() : null)
-                .alreadyRequested(currentUserId != null && l.getId() != null && 
+                .alreadyRequested(currentUserId != null && l.getId() != null &&
                         swapRequestRepository.existsByListingIdAndRequesterId(l.getId(), currentUserId))
+                .isFree(l.isFree())
                 .build();
     }
 

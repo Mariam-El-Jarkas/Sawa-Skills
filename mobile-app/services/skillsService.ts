@@ -15,6 +15,7 @@ export interface SkillListing {
   avgRating: number;
   createdAt: string;
   alreadyRequested: boolean;
+  isFree?: boolean;
 }
 
 export interface UserSkill {
@@ -51,7 +52,7 @@ export const skillsService = {
     return apiGet<string[]>('/api/skills/categories');
   },
 
-  createListing(data: { offeredSkill: string; wantedSkill: string; location?: string; availability?: string }, token: string): Promise<SkillListing> {
+  createListing(data: { offeredSkill: string; wantedSkill: string; location?: string; availability?: string; isFree?: boolean }, token: string): Promise<SkillListing> {
     return apiPost<SkillListing>('/api/skills/listings', data, token);
   },
 
@@ -61,6 +62,10 @@ export const skillsService = {
 
   deleteListing(id: number, token: string): Promise<void> {
     return apiDelete<void>(`/api/skills/listings/${id}`, token);
+  },
+
+  deleteUserSkill(id: number, token: string): Promise<void> {
+    return apiDelete<void>(`/api/skills/my/${id}`, token);
   },
 
   addOfferedSkill(data: { skillName: string; description?: string; category?: string }, token: string): Promise<UserSkill> {

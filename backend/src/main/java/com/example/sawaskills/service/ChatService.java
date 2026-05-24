@@ -20,20 +20,36 @@ public class ChatService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
+    private final ConnectionRepository connectionRepository;
+    private final SwapRequestRepository swapRequestRepository;
+    private final NotificationService notificationService;
+    private final StoryRepository storyRepository;
+    private final VolunteerSessionRepository volunteerSessionRepository;
+    private final VolunteerParticipantRepository volunteerParticipantRepository;
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("h:mm a");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("MMM d");
 
     // ── Get all conversations for current user ────────────────────────────────
 
+    @Transactional
     public List<ConversationResponse> getConversations(String email) {
         User user = findUser(email);
-        // Sort by last activity (last message or creation time if no messages)
-        return conversationRepository.findByParticipantId(user.getId())
-                .stream()
+
+        // Get existing conversations where the user is a participant
+        List<Conversation> existing = conversationRepository.findByParticipantId(user.getId());
+
+        return existing.stream()
                 .map(c -> toConversationResponse(c, user))
                 .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp, Comparator.reverseOrder()))
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void clearMessages(String email, Long conversationId) {
+        User user = findUser(email);
+        getConversationForUser(conversationId, user.getId()); // validates membership
+        messageRepository.deleteByConversationId(conversationId);
     }
 
     // ── Find or create a conversation between two users ───────────────────────
@@ -98,9 +114,31 @@ public class ChatService {
                 .content(sanitize(request.getContent()))
                 .read(false)
                 .sentAt(LocalDateTime.now())
+                .replyToStoryId(request.getReplyToStoryId())
+                .replyToStoryText(request.getReplyToStoryText())
+                .replyToStoryMedia(request.getReplyToStoryMedia())
+                .sharedPostId(request.getSharedPostId())
+                .sharedPostAuthorId(request.getSharedPostAuthorId())
+                .sharedPostAuthorName(request.getSharedPostAuthorName())
+                .sharedPostContent(request.getSharedPostContent())
+                .sharedPostImage(request.getSharedPostImage())
+                .sharedPostPollOptions(request.getSharedPostPollOptions())
                 .build();
 
         messageRepository.save(message);
+
+        // Notify all other participants of the new message
+        conversation.getParticipants().stream()
+                .filter(p -> !p.getId().equals(user.getId()))
+                .forEach(p -> notificationService.notifyMessage(p, user, conversation.getId(), request.getContent()));
+
+        // If this is a story reply, notify the story author
+        if (request.getReplyToStoryId() != null) {
+            storyRepository.findById(request.getReplyToStoryId()).ifPresent(story -> {
+                notificationService.notifyStoryReply(story.getUser(), user, story.getId(), request.getContent());
+            });
+        }
+
         return toMessageResponse(message, user.getId());
     }
 
@@ -111,6 +149,88 @@ public class ChatService {
         User user = findUser(email);
         getConversationForUser(conversationId, user.getId()); // validates membership
         messageRepository.markAllReadInConversation(conversationId, user.getId());
+    }
+
+    @Transactional
+    public void clearConversation(String email, Long conversationId) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+        
+        // 1. Delete all messages
+        messageRepository.deleteByConversationId(conversationId);
+        
+        // 2. Delete the conversation record
+        // This effectively "clears" it for both. 
+        // It will be re-created empty if they are connections and getConversations() is called.
+        conversationRepository.delete(conversation);
+    }
+
+    @Transactional
+    public void leaveGroup(String email, Long conversationId) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+
+        if (conversation.getName() == null) {
+            throw new RuntimeException("You can only leave group conversations");
+        }
+
+        conversation.getParticipants().remove(user);
+
+        // Also remove the user from the linked volunteer session if one exists
+        volunteerSessionRepository.findByGroupChatId(conversationId).ifPresent(session ->
+            volunteerParticipantRepository.deleteBySessionIdAndParticipantId(session.getId(), user.getId())
+        );
+
+        // If the leaving user was the admin, transfer admin to the next participant
+        if (conversation.getAdmin() != null && conversation.getAdmin().getId().equals(user.getId())) {
+            conversation.getParticipants().stream()
+                    .filter(p -> !p.getId().equals(user.getId()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                        conversation::setAdmin,
+                        () -> conversationRepository.delete(conversation)
+                    );
+        }
+
+        if (!conversation.getParticipants().isEmpty()) {
+            conversationRepository.save(conversation);
+        }
+    }
+
+    public List<ConversationResponse> searchConversations(String email, String query) {
+        User user = findUser(email);
+        if (query == null || query.isBlank()) return Collections.emptyList();
+        String q = query.toLowerCase();
+
+        // 1. Search existing conversations (groups and 1:1)
+        List<Conversation> existing = conversationRepository.findByParticipantId(user.getId());
+        List<ConversationResponse> results = existing.stream()
+                .map(c -> toConversationResponse(c, user))
+                .filter(cr -> (cr.getOtherUserName() != null && cr.getOtherUserName().toLowerCase().contains(q)))
+                .collect(Collectors.toList());
+
+        // 2. Search connections (to find users not currently in conversations list)
+        List<Connection> connections = connectionRepository.findAcceptedByUserId(user.getId());
+        for (Connection conn : connections) {
+            User other = conn.getRequester().getId().equals(user.getId()) ? conn.getReceiver() : conn.getRequester();
+            if (other.getName() != null && other.getName().toLowerCase().contains(q)) {
+                // If this user is already in results (via an existing conversation), skip
+                boolean alreadyPresent = results.stream().anyMatch(r -> Objects.equals(r.getOtherUserId(), other.getId()));
+                if (!alreadyPresent) {
+                    results.add(ConversationResponse.builder()
+                            .id(null) // Signal that a conversation needs to be found/created
+                            .otherUserId(other.getId())
+                            .otherUserName(other.getName())
+                            .otherUserInitials(getInitials(other.getName()))
+                            .otherUserPicture(other.getProfilePicture())
+                            .isGroup(false)
+                            .lastMessage(null)
+                            .build());
+                }
+            }
+        }
+
+        return results;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -233,6 +353,15 @@ public class ChatService {
                 .isMe(m.getSender().getId().equals(currentUserId))
                 .senderId(m.getSender().getId())
                 .senderName(m.getSender().getName())
+                .replyToStoryId(m.getReplyToStoryId())
+                .replyToStoryText(m.getReplyToStoryText())
+                .replyToStoryMedia(m.getReplyToStoryMedia())
+                .sharedPostId(m.getSharedPostId())
+                .sharedPostAuthorId(m.getSharedPostAuthorId())
+                .sharedPostAuthorName(m.getSharedPostAuthorName())
+                .sharedPostContent(m.getSharedPostContent())
+                .sharedPostImage(m.getSharedPostImage())
+                .sharedPostPollOptions(m.getSharedPostPollOptions())
                 .build();
     }
 

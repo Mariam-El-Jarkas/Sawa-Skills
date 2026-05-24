@@ -4,11 +4,12 @@ import { apiGet, apiPost, apiPatch } from './api';
 
 export interface Swap {
   id: number;
-  status: 'pending' | 'active' | 'completed' | 'rejected';
+  status: 'pending' | 'active' | 'completed' | 'rejected' | 'pending_parent_approval';
   date: string;
   otherUserId: number;
   otherUserName: string;
   otherUserInitials: string;
+  otherUserPicture: string | null;
   theyOffer: string;
   youOffer: string;
   note: string | null;
@@ -17,6 +18,8 @@ export interface Swap {
   hasRated?: boolean;
   isFinished?: boolean;
   everyoneFinished?: boolean;
+  otherUserAge?: number | null;
+  otherUserGender?: string | null;
 }
 
 export interface CreateSwapData {

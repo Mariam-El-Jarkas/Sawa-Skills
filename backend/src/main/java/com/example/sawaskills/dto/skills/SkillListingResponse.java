@@ -1,5 +1,6 @@
 package com.example.sawaskills.dto.skills;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 @Getter
@@ -20,4 +21,6 @@ public class SkillListingResponse {
     private Double avgRating;
     private String createdAt;
     private boolean alreadyRequested;
+    @JsonProperty("isFree")
+    private boolean isFree;
 }

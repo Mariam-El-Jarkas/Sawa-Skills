@@ -29,6 +29,24 @@ export const getStoredToken = async (): Promise<string | null> => {
   }
 };
 
+// ── JWT helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Decodes the JWT payload and checks whether the token is expired.
+ * This is a CLIENT-SIDE check only — never a substitute for server validation.
+ * Returns true if expired or if the token cannot be parsed.
+ */
+export const isJwtExpired = (token: string): boolean => {
+  try {
+    const [, payload] = token.split('.');
+    // JWT uses base64url encoding — convert to standard base64 first
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof decoded.exp !== 'number' || decoded.exp * 1000 < Date.now();
+  } catch {
+    return true; // Treat unparseable tokens as expired
+  }
+};
+
 // ── Structured API error ──────────────────────────────────────────────────────
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -88,7 +106,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   // Handle empty responses (204 No Content, etc.)
   const text = await res.text();
   if (!text) return undefined as unknown as T;
-  return JSON.parse(text) as T;
+  // Some endpoints return plain text (e.g. "Password reset code sent").
+  // JSON.parse would throw for those, so fall back to returning the raw string.
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
 }
 
 // ── Exported helpers ──────────────────────────────────────────────────────────

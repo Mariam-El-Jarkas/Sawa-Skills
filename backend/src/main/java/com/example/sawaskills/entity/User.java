@@ -23,7 +23,7 @@ public class User {
 
     private String name;
 
-    @Column(unique = true, nullable = false)
+    @Column(unique = true, nullable = true)
     private String email;
 
     private String phoneNumber;
@@ -42,7 +42,35 @@ public class User {
 
     private LocalDateTime createdAt;
 
+    @Builder.Default
+    private boolean publicProfile = true;
+
+    @Builder.Default
+    private boolean allowMessages = true;
+
+    @Builder.Default
+    @Column(columnDefinition = "boolean default true")
+    private boolean swapNotificationsEnabled = true;
+
+    @Builder.Default
+    @Column(columnDefinition = "boolean default true")
+    private boolean messageNotificationsEnabled = true;
+
+    @Builder.Default
+    @Column(columnDefinition = "boolean default true")
+    private boolean skillNewsNotificationsEnabled = true;
+
     @ManyToOne
     @JoinColumn(name = "location_id")
     private Location location;
+
+    private LocalDateTime deletedAt;
+    private String deletedEmailHash;
+
+    @Column(length = 20)
+    private String gender; // MALE | FEMALE | PREFER_NOT_TO_SAY
+
+    @Builder.Default
+    @Column(name = "account_status", length = 20)
+    private String accountStatus = "ACTIVE"; // ACTIVE | SUSPENDED | BANNED
 }

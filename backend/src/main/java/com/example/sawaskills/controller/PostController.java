@@ -21,6 +21,14 @@ public class PostController {
 
     // ── Feed endpoints ────────────────────────────────────────────────────────
 
+    @GetMapping("/{id}")
+    public ResponseEntity<PostResponse> getPostById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String email = userDetails != null ? userDetails.getUsername() : null;
+        return ResponseEntity.ok(postService.getPostById(email, id));
+    }
+
     @GetMapping
     public ResponseEntity<List<PostResponse>> getPosts(
             @AuthenticationPrincipal UserDetails userDetails) {

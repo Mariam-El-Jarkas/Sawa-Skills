@@ -42,6 +42,8 @@ export interface Comment {
   isMine: boolean;
   likeCount: number;
   isLiked: boolean;
+  parentCommentId?: number | null;
+  replies?: Comment[];
 }
 
 export interface Story {
@@ -52,9 +54,16 @@ export interface Story {
   userPicture: string | null;
   textContent: string | null;
   mediaUrl: string | null;
+  pollQuestion: string | null;
+  pollOptions: string | null;
+  pollResults: Record<string, number> | null;
+  userPollVote: string | null;
   createdAt: string;
   expiresAt: string;
   hasViewed: boolean;
+  liked: boolean;
+  likeCount: number;
+  bgIndex: number;
 }
 
 export interface LikeResult {
@@ -82,23 +91,29 @@ export const postsService = {
     return apiGet<SuggestedUser[]>('/api/posts/suggested-connections', token);
   },
 
+  getPostById(postId: number, token?: string | null): Promise<Post> {
+    return apiGet<Post>(`/api/posts/${postId}`, token);
+  },
+
   // Post CRUD
   createPost(
-    content: string, 
-    imageBase64: string | null, 
-    token: string, 
+    content: string,
+    imageBase64: string | null,
+    token: string,
     visibility: 'EVERYONE' | 'FOLLOWERS' = 'EVERYONE',
     documentBase64?: string | null,
     pollQuestion?: string | null,
-    pollOptions?: string | null
+    pollOptions?: string | null,
+    sharedPostId?: number | null
   ): Promise<Post> {
-    return apiPost<Post>('/api/posts', { 
-      content, 
-      imageBase64, 
-      visibility, 
-      documentBase64, 
-      pollQuestion, 
-      pollOptions 
+    return apiPost<Post>('/api/posts', {
+      content,
+      imageBase64,
+      visibility,
+      documentBase64,
+      pollQuestion,
+      pollOptions,
+      sharedPostId: sharedPostId ?? null,
     }, token);
   },
   deletePost(postId: number, token: string): Promise<void> {
@@ -123,8 +138,8 @@ export const postsService = {
   getComments(postId: number, token?: string | null): Promise<Comment[]> {
     return apiGet<Comment[]>(`/api/posts/${postId}/comments`, token);
   },
-  addComment(postId: number, content: string, token: string): Promise<Comment> {
-    return apiPost<Comment>(`/api/posts/${postId}/comments`, { content }, token);
+  addComment(postId: number, content: string, token: string, parentCommentId?: number | null): Promise<Comment> {
+    return apiPost<Comment>(`/api/posts/${postId}/comments`, { content, parentCommentId }, token);
   },
   deleteComment(postId: number, commentId: number, token: string): Promise<void> {
     return apiDelete<void>(`/api/posts/${postId}/comments/${commentId}`, token);
@@ -140,10 +155,29 @@ export const postsService = {
   getStories(token?: string | null): Promise<Story[]> {
     return apiGet<Story[]>('/api/stories', token);
   },
-  createStory(textContent: string | null, mediaBase64: string | null, token: string): Promise<Story> {
-    return apiPost<Story>('/api/stories', { textContent, mediaBase64 }, token);
+  getUserStories(userId: number, token?: string | null): Promise<Story[]> {
+    return apiGet<Story[]>(`/api/stories/user/${userId}`, token);
+  },
+  createStory(
+    textContent: string | null,
+    mediaBase64: string | null,
+    token: string,
+    pollQuestion?: string | null,
+    pollOptions?: string | null,
+    bgIndex?: number
+  ): Promise<Story> {
+    return apiPost<Story>('/api/stories', { textContent, mediaBase64, pollQuestion, pollOptions, bgIndex: bgIndex ?? 0 }, token);
+  },
+  submitStoryVote(storyId: number, option: string, token: string): Promise<void> {
+    return apiPost<void>(`/api/stories/${storyId}/vote`, { option }, token);
   },
   viewStory(storyId: number, token: string): Promise<void> {
     return apiPost<void>(`/api/stories/${storyId}/view`, {}, token);
+  },
+  likeStory(storyId: number, token: string): Promise<void> {
+    return apiPost<void>(`/api/stories/${storyId}/like`, {}, token);
+  },
+  deleteStory(storyId: number, token: string): Promise<void> {
+    return apiDelete<void>(`/api/stories/${storyId}`, token);
   },
 };

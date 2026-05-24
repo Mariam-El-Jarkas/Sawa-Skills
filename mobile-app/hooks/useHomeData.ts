@@ -36,13 +36,7 @@ export function useHomeData(): HomeData {
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (token !== undefined) refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [refresh]);
 
   return { stats, trending, isLoading, error, refresh };
 }

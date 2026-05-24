@@ -1,23 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useToast } from '../../components/modals/AppToast';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Heart, Calendar, Users, X, CheckCircle, ArrowLeft, Plus } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
-import { C, G } from '../../components/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../contexts/ThemeContext';
+import type { ThemeColors } from '../../components/theme';
 
+import { VerificationGate } from '../../components/VerificationGate';
 import { volunteerService, VolunteerSession } from '../../services/volunteerService';
 
 export default function VolunteerScreen() {
+  const { C, G } = useTheme();
+  const insets = useSafeAreaInsets();
+  const s = useMemo(() => createStyles(C), [C]);
   const router = useRouter();
-  const { isLoggedIn, token, setShowLoginPrompt } = useAuth();
+  const { isLoggedIn, user, token, setShowLoginPrompt } = useAuth();
   const { profile, applyForVolunteer } = useProfile();
+  const isVerified = !!(user?.isAgeVerified || user?.isMinorVerified);
+  const isVolunteer = !!(profile?.isVolunteer);
   
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [showVerifyGate, setShowVerifyGate] = useState(false);
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [confirmingOppId, setConfirmingOppId] = useState<number | null>(null);
+  const [pendingApprovalIds, setPendingApprovalIds] = useState<Set<number>>(new Set());
   const { showToast } = useToast();
   
   const [appData, setAppData] = useState({ why: '', experience: '', skills: '' });
@@ -33,19 +43,19 @@ export default function VolunteerScreen() {
   const [opportunities, setOpportunities] = useState<VolunteerSession[]>([]);
   const [mySessions, setMySessions] = useState<VolunteerSession[]>([]);
 
-  const loadData = () => {
-    volunteerService.getAllSessions().then(setOpportunities).catch(console.error);
+  const loadData = useCallback(() => {
+    volunteerService.getAllSessions(token ?? undefined).then(setOpportunities).catch(console.error);
     if (isLoggedIn && token) {
       volunteerService.getMySessions(token).then(setMySessions).catch(console.error);
     }
-  };
-
-  useEffect(() => {
-    loadData();
   }, [isLoggedIn, token]);
+
+  // Re-fetch every time screen comes into focus so isJoined is always current
+  useFocusEffect(loadData);
 
   const handleJoin = (session: VolunteerSession) => {
     if (!isLoggedIn || !token) { setShowLoginPrompt(true); return; }
+    if (!isVerified) { setShowVerifyGate(true); return; }
     if (session.isOrganizer) {
       showToast('You cannot join your own session', 'error');
       return;
@@ -64,21 +74,36 @@ export default function VolunteerScreen() {
       showToast('Joined Successfully!', 'success');
     } catch (e: any) {
       setConfirmingOppId(null);
-      showToast(e.message ?? 'Failed to join session', 'error');
+      const msg: string = e.message ?? '';
+      if (msg.startsWith('PENDING_PARENT_APPROVAL:')) {
+        setPendingApprovalIds(prev => new Set(prev).add(session.id));
+        showToast(msg.replace('PENDING_PARENT_APPROVAL:', '').trim(), 'success');
+      } else {
+        showToast(msg || 'Failed to join session', 'error');
+      }
     }
   };
 
   const handleAppSubmit = async () => {
-    if (!appData.why || !appData.experience || !appData.skills) {
+    if (!isLoggedIn || !token) { setShowLoginPrompt(true); return; }
+    if (!appData.why.trim() || !appData.experience.trim() || !appData.skills.trim()) {
       showToast('Please fill in all fields', 'error');
       return;
     }
     try {
-      await applyForVolunteer(appData.why, appData.experience, appData.skills);
-      showToast('Application Submitted!', 'success');
+      await applyForVolunteer(appData.why.trim(), appData.experience.trim(), appData.skills.trim());
+      showToast('Application submitted! We\'ll review it shortly.', 'success');
       setShowApplicationForm(false);
+      setAppData({ why: '', experience: '', skills: '' });
     } catch (e: any) {
-      showToast(e.message ?? 'Application failed', 'error');
+      const msg: string = e.message ?? '';
+      if (msg.startsWith('PENDING_PARENT_APPROVAL:')) {
+        showToast(msg.replace('PENDING_PARENT_APPROVAL:', '').trim(), 'success');
+        setShowApplicationForm(false);
+        setAppData({ why: '', experience: '', skills: '' });
+      } else {
+        showToast(msg || 'Failed to submit application. Please try again.', 'error');
+      }
     }
   };
 
@@ -109,7 +134,7 @@ export default function VolunteerScreen() {
 
   return (
     <View style={s.screen}>
-      <LinearGradient colors={G.header} style={s.header}>
+      <LinearGradient colors={G.header} style={[s.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <ArrowLeft size={22} color={C.white} />
         </TouchableOpacity>
@@ -122,15 +147,25 @@ export default function VolunteerScreen() {
             <Heart size={36} color={C.white} />
             <Text style={s.heroTitle}>Give Back to Your Community</Text>
             <Text style={s.heroSub}>Share your skills for free and make a difference in Lebanon</Text>
-            {profile?.isVolunteer ? (
+            {isVolunteer ? (
               <View style={[s.applyBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Text style={[s.applyBtnTxt, { color: C.white }]}>Application Under Review ✓</Text>
+                <CheckCircle size={16} color={C.white} />
+                <Text style={[s.applyBtnTxt, { color: C.white }]}>Volunteer Badge Active</Text>
+              </View>
+            ) : profile?.volunteerStatus === 'PENDING' ? (
+              <View style={[s.applyBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Text style={[s.applyBtnTxt, { color: C.white }]}>Application Under Review…</Text>
+              </View>
+            ) : !isLoggedIn ? (
+              <TouchableOpacity style={s.applyBtn} onPress={() => setShowLoginPrompt(true)}>
+                <Text style={s.applyBtnTxt}>Log In to Apply</Text>
+              </TouchableOpacity>
+            ) : !isVerified ? (
+              <View style={[s.applyBtn, { backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }]}>
+                <Text style={[s.applyBtnTxt, { color: 'rgba(255,255,255,0.75)' }]}>Verify Your Account First</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={s.applyBtn}
-                onPress={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setShowApplicationForm(true); }}
-              >
+              <TouchableOpacity style={s.applyBtn} onPress={() => setShowApplicationForm(true)}>
                 <Text style={s.applyBtnTxt}>Become a Volunteer</Text>
               </TouchableOpacity>
             )}
@@ -157,21 +192,36 @@ export default function VolunteerScreen() {
                           <Text style={s.organizerBadgeTxt}>Your Session</Text>
                         </View>
                       ) : confirmingOppId === opp.id ? (
-                        <View style={s.confirmActions}>
-                           <TouchableOpacity style={s.cancelJoinBtn} onPress={() => setConfirmingOppId(null)}>
-                             <Text style={s.cancelJoinTxt}>Cancel</Text>
-                           </TouchableOpacity>
-                           <TouchableOpacity style={s.confirmJoinBtn} onPress={() => confirmJoin(opp)}>
-                             <Text style={s.confirmJoinTxt}>Confirm</Text>
-                           </TouchableOpacity>
+                        <View style={{ width: '100%', gap: 8 }}>
+                          {(opp.organizerAge || opp.organizerGender) && (
+                            <View style={s.confirmSafety}>
+                              <Text style={s.confirmSafetyTxt}>
+                                <Text style={{ fontWeight: '700' }}>{opp.organizer}</Text>
+                                {opp.organizerAge ? ` · Age ${opp.organizerAge}` : ''}
+                                {opp.organizerGender && opp.organizerGender !== 'Prefer not to say' ? ` · ${opp.organizerGender}` : ''}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={s.confirmActions}>
+                            <TouchableOpacity style={s.cancelJoinBtn} onPress={() => setConfirmingOppId(null)}>
+                              <Text style={s.cancelJoinTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={s.confirmJoinBtn} onPress={() => confirmJoin(opp)}>
+                              <Text style={s.confirmJoinTxt}>Confirm Join</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       ) : opp.isJoined && opp.groupChatId ? (
                         <TouchableOpacity
                           style={[s.joinBtn, s.joinBtnDone]}
-                          onPress={() => router.push({ pathname: '/chat', params: { openId: opp.groupChatId } })}
+                          onPress={() => router.push({ pathname: '/chat', params: { openId: opp.groupChatId.toString() } })}
                         >
                           <Text style={[s.joinBtnTxt, s.joinBtnTxtDone]}>Open Chat</Text>
                         </TouchableOpacity>
+                      ) : pendingApprovalIds.has(opp.id) ? (
+                        <View style={[s.joinBtn, { backgroundColor: C.violet600, opacity: 0.75 }]}>
+                          <Text style={[s.joinBtnTxt, { color: '#fff' }]}>⏳ Awaiting Approval</Text>
+                        </View>
                       ) : (
                         <TouchableOpacity
                           style={[s.joinBtn, opp.isJoined ? s.joinBtnDone : null]}
@@ -189,32 +239,6 @@ export default function VolunteerScreen() {
             </View>
           )}
 
-          {/* My Sessions */}
-          {isLoggedIn && (
-            <View style={s.section}>
-              <View style={s.sectionHdr}>
-                <Text style={s.sectionTitle}>My Sessions</Text>
-                <TouchableOpacity style={s.createSessionBtn} onPress={() => setShowSessionForm(true)}>
-                  <Plus size={16} color={C.white} />
-                  <Text style={s.createSessionTxt}>Create</Text>
-                </TouchableOpacity>
-              </View>
-              {mySessions.map(sess => (
-                <View key={sess.id} style={s.mySessionCard}>
-                  <View style={s.mySessionInfo}>
-                    <Text style={s.mySessionTitle}>{sess.title}</Text>
-                    <View style={s.mySessionMeta}>
-                      <View style={s.oppMetaItem}><Calendar size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{sess.date}</Text></View>
-                      <View style={s.oppMetaItem}><Users size={12} color={C.gray400} /><Text style={s.oppMetaTxt}>{sess.participants} participants</Text></View>
-                    </View>
-                  </View>
-                  <View style={[s.statusBadge, { backgroundColor: '#DBEAFE' }]}>
-                    <Text style={[s.statusTxt, { color: '#2563EB' }]}>{sess.status}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -222,6 +246,7 @@ export default function VolunteerScreen() {
 
       {/* Application Form Modal */}
       <Modal visible={showApplicationForm} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={s.modalOverlay}>
           <View style={s.formSheet}>
             <View style={s.formHdr}>
@@ -262,10 +287,12 @@ export default function VolunteerScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Create Session Modal */}
       <Modal visible={showSessionForm} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={s.modalOverlay}>
           <View style={s.formSheet}>
             <View style={s.formHdr}>
@@ -314,12 +341,26 @@ export default function VolunteerScreen() {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
+
+      {/* Verification gate — shown when an unverified user tries to join a session */}
+      {showVerifyGate && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <VerificationGate feature="Volunteer Sessions" />
+          {/* Tap outside the card to dismiss */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setShowVerifyGate(false)}
+          />
+        </View>
+      )}
     </View>
   );
 }
 
-const s = StyleSheet.create({
+function createStyles(C: ThemeColors) { return StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.gray50 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, paddingTop: 20 },
   backBtn: { padding: 4 },
@@ -328,7 +369,7 @@ const s = StyleSheet.create({
   heroContent: { padding: 24, alignItems: 'center', gap: 10 },
   heroTitle: { fontSize: 22, fontWeight: '700', color: C.white, textAlign: 'center' },
   heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
-  applyBtn: { backgroundColor: C.white, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
+  applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.white, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
   applyBtnTxt: { color: C.violet600, fontWeight: '700', fontSize: 15 },
   body: { paddingHorizontal: 16, gap: 20, paddingBottom: 20 },
   section: { gap: 12 },
@@ -348,6 +389,8 @@ const s = StyleSheet.create({
   joinBtnDone: { backgroundColor: C.violet100 },
   joinBtnTxt: { color: C.white, fontWeight: '700', fontSize: 13 },
   joinBtnTxtDone: { color: C.violet600 },
+  confirmSafety: { backgroundColor: C.violet50, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: C.violet100 },
+  confirmSafetyTxt: { fontSize: 12, color: C.emerald600 },
   confirmActions: { flexDirection: 'row', gap: 8 },
   cancelJoinBtn: { backgroundColor: C.gray100, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
   cancelJoinTxt: { color: C.gray700, fontWeight: '600', fontSize: 13 },
@@ -376,5 +419,5 @@ const s = StyleSheet.create({
   cancelBtnTxt: { fontWeight: '600', color: C.gray700 },
   submitBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.violet600, alignItems: 'center' },
   submitBtnTxt: { fontWeight: '700', color: C.white },
-  successIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' },
-});
+  successIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.violet100, alignItems: 'center', justifyContent: 'center' },
+}); }

@@ -24,6 +24,14 @@ public class StoryController {
         return ResponseEntity.ok(storyService.getActiveStories(email));
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<StoryResponse>> getUserStories(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String email = userDetails != null ? userDetails.getUsername() : null;
+        return ResponseEntity.ok(storyService.getUserStories(email, userId));
+    }
+
     @PostMapping
     public ResponseEntity<StoryResponse> createStory(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -36,6 +44,31 @@ public class StoryController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id) {
         storyService.viewStory(userDetails.getUsername(), id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/vote")
+    public ResponseEntity<Void> submitVote(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> payload) {
+        storyService.submitVote(userDetails.getUsername(), id, payload.get("option"));
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/like")
+    public ResponseEntity<Void> toggleLike(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        storyService.toggleLike(userDetails.getUsername(), id);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteStory(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        storyService.deleteStory(userDetails.getUsername(), id);
         return ResponseEntity.ok().build();
     }
 }
