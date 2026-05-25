@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface VerificationRequestRepository extends JpaRepository<VerificationRequest, Long> {
     List<VerificationRequest> findByUserId(Long userId);
     Optional<VerificationRequest> findTopByUserIdAndTypeOrderBySubmittedAtDesc(Long userId, String type);
+    Optional<VerificationRequest> findTopByUserIdAndTypeAndStatusOrderBySubmittedAtDesc(Long userId, String type, String status);
     List<VerificationRequest> findByStatus(String status);
     List<VerificationRequest> findAllByOrderBySubmittedAtDesc();
     Optional<VerificationRequest> findByParentApprovalToken(String token);

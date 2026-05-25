@@ -15,13 +15,13 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Users" value={mockStats.totalUsers} icon={<Users size={20} />} color="bg-primary-50 text-primary-600" change="+12% this month" changeType="up" />
-        <StatCard title="Active Today" value={mockStats.activeToday} icon={<Activity size={20} />} color="bg-green-50 text-green-600" change="+5% vs yesterday" changeType="up" />
-        <StatCard title="Total Exchanges" value={mockStats.totalExchanges} icon={<ArrowLeftRight size={20} />} color="bg-blue-50 text-blue-600" change="+8% this month" changeType="up" />
+        <StatCard title="Active Today" value={mockStats.activeToday} icon={<Activity size={20} />} color="bg-primary-100 text-primary-700" change="+5% vs yesterday" changeType="up" />
+        <StatCard title="Total Exchanges" value={mockStats.totalExchanges} icon={<ArrowLeftRight size={20} />} color="bg-primary-50 text-primary-600" change="+8% this month" changeType="up" />
         <StatCard title="Pending Verifications" value={mockStats.pendingVerifications} icon={<ShieldCheck size={20} />} color="bg-yellow-50 text-yellow-600" change="Requires attention" changeType="neutral" />
         <StatCard title="Pending Reports" value={mockStats.pendingReports} icon={<Flag size={20} />} color="bg-red-50 text-red-600" change="Requires review" changeType="neutral" />
-        <StatCard title="Volunteer Sessions" value={mockStats.volunteerSessions} icon={<Heart size={20} />} color="bg-pink-50 text-pink-600" change="+3 this week" changeType="up" />
-        <StatCard title="Total Posts" value={mockStats.totalPosts} icon={<FileText size={20} />} color="bg-indigo-50 text-indigo-600" change="+127 this week" changeType="up" />
-        <StatCard title="Messages Sent" value={mockStats.messagesSent} icon={<MessageCircle size={20} />} color="bg-teal-50 text-teal-600" change="+2.1k this week" changeType="up" />
+        <StatCard title="Volunteer Sessions" value={mockStats.volunteerSessions} icon={<Heart size={20} />} color="bg-primary-100 text-primary-600" change="+3 this week" changeType="up" />
+        <StatCard title="Total Posts" value={mockStats.totalPosts} icon={<FileText size={20} />} color="bg-primary-50 text-primary-700" change="+127 this week" changeType="up" />
+        <StatCard title="Messages Sent" value={mockStats.messagesSent} icon={<MessageCircle size={20} />} color="bg-primary-100 text-primary-600" change="+2.1k this week" changeType="up" />
       </div>
 
       {/* Charts Row 1 */}

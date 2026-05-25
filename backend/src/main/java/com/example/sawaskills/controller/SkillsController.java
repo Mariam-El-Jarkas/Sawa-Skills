@@ -37,7 +37,7 @@ public class SkillsController {
 
     // ── GET /api/skills/categories — list all categories (public) ────────────
     @GetMapping("/categories")
-    public ResponseEntity<List<String>> getCategories() {
+    public ResponseEntity<List<Map<String, String>>> getCategories() {
         return ResponseEntity.ok(skillsService.getCategories());
     }
 

@@ -56,7 +56,7 @@ export default function ReportsPage() {
                 {r.status === 'PENDING' && (
                   <div className="flex items-center gap-1">
                     <button title="Resolve" onClick={() => setConfirm({ msg: 'Resolve this report?', onConfirm: () => doAction(() => adminApi.resolveReport(token, r.id)) })} className="p-1.5 hover:bg-green-50 rounded text-green-600"><CheckCircle size={15} /></button>
-                    <button title="Dismiss" onClick={() => setConfirm({ msg: 'Dismiss this report?', onConfirm: () => doAction(() => adminApi.dismissReport(token, r.id)) })} className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600"><XCircle size={15} /></button>
+                    <button title="Dismiss" onClick={() => setConfirm({ msg: 'Dismiss this report?', onConfirm: () => doAction(() => adminApi.dismissReport(token, r.id)) })} className="p-1.5 hover:bg-primary-50 rounded text-primary-600"><XCircle size={15} /></button>
                     {r.postId && <button title="Hide Post" onClick={() => setConfirm({ msg: 'Hide the reported post?', danger: true, onConfirm: () => doAction(async () => { await adminApi.hidePost(token, r.postId); await adminApi.resolveReport(token, r.id) }) })} className="p-1.5 hover:bg-red-50 rounded text-red-600"><Trash2 size={15} /></button>}
                   </div>
                 )}

@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8080/api';
+const BASE = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8080'}/api`;
 
 async function req(method, path, body, token) {
   const res = await fetch(`${BASE}${path}`, {
@@ -21,7 +21,8 @@ async function req(method, path, body, token) {
     throw new Error(text || `HTTP ${res.status}`);
   }
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return text; }
 }
 
 function qs(params) {
@@ -49,10 +50,12 @@ export const adminApi = {
   deleteUser: (token, id)     => req('DELETE', `/admin/users/${id}`, undefined, token),
 
   // ── Posts ──────────────────────────────────────────────────────────────────
-  getPosts:   (token, params) => req('GET', `/admin/posts${qs(params)}`, undefined, token),
-  hidePost:   (token, id)     => req('PATCH', `/admin/posts/${id}/visibility`, { hidden: true }, token),
-  showPost:   (token, id)     => req('PATCH', `/admin/posts/${id}/visibility`, { hidden: false }, token),
-  deletePost: (token, id)     => req('DELETE', `/admin/posts/${id}`, undefined, token),
+  getPosts:        (token, params)              => req('GET', `/admin/posts${qs(params)}`, undefined, token),
+  hidePost:        (token, id)                  => req('PATCH', `/admin/posts/${id}/visibility`, { hidden: true }, token),
+  showPost:        (token, id)                  => req('PATCH', `/admin/posts/${id}/visibility`, { hidden: false }, token),
+  deletePost:      (token, id)                  => req('DELETE', `/admin/posts/${id}`, undefined, token),
+  getPostComments: (token, postId)              => req('GET', `/admin/posts/${postId}/comments`, undefined, token),
+  deleteComment:   (token, postId, commentId)   => req('DELETE', `/admin/posts/${postId}/comments/${commentId}`, undefined, token),
 
   // ── Reports ────────────────────────────────────────────────────────────────
   getReports:    (token, params) => req('GET', `/admin/reports${qs(params)}`, undefined, token),
@@ -68,6 +71,9 @@ export const adminApi = {
   approveSession:       (token, id) => req('PATCH', `/admin/volunteer/sessions/${id}/approve`, null, token),
   rejectSession:        (token, id) => req('PATCH', `/admin/volunteer/sessions/${id}/reject`, null, token),
 
+  // ── Badge revocation ───────────────────────────────────────────────────────
+  revokeBadge: (token, userId, type) => req('PATCH', `/admin/users/${userId}/revoke-badge?type=${type}`, null, token),
+
   // ── Skills ─────────────────────────────────────────────────────────────────
   getSkillCategories:   (token)              => req('GET', '/admin/skills/categories', undefined, token),
   createSkillCategory:  (token, body)        => req('POST', '/admin/skills/categories', body, token),
@@ -76,11 +82,16 @@ export const adminApi = {
   removeSkill:          (token, skillId)     => req('DELETE', `/admin/skills/${skillId}`, undefined, token),
 
   // ── Notifications / Broadcasts ─────────────────────────────────────────────
-  getBroadcasts:  (token)       => req('GET', '/admin/notifications/broadcasts', undefined, token),
-  sendBroadcast:  (token, body) => req('POST', '/admin/notifications/broadcast', body, token),
+  getBroadcasts:    (token)       => req('GET', '/admin/notifications/broadcasts', undefined, token),
+  sendBroadcast:    (token, body) => req('POST', '/admin/notifications/broadcast', body, token),
+  deleteBroadcast:  (token, id)   => req('DELETE', `/admin/notifications/broadcasts/${id}`, undefined, token),
 
   // ── Logs ───────────────────────────────────────────────────────────────────
   getLogs: (token, params) => req('GET', `/admin/logs${qs(params)}`, undefined, token),
+
+  // ── Admin Profile ──────────────────────────────────────────────────────────
+  updateAdminName:     (token, name)                           => req('PATCH', '/admin/profile/name', { name }, token),
+  changeAdminPassword: (token, currentPassword, newPassword)   => req('PATCH', '/admin/profile/password', { currentPassword, newPassword }, token),
 
   // ── Settings ───────────────────────────────────────────────────────────────
   getSettings:  (token)       => req('GET', '/admin/settings', undefined, token),

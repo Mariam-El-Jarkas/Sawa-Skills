@@ -4,7 +4,7 @@ import java.util.List;
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class AdminSkillCategoryResponse {
     private Long id;
-    private String name, description;
+    private String name, description, iconKey;
     private long skillCount;
     private List<AdminSkillDto> skills;
 }

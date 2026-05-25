@@ -15,4 +15,8 @@ public interface UserSkillRepository extends JpaRepository<UserSkill, Long> {
     List<UserSkill> findByUserId(Long userId);
 
     Optional<UserSkill> findByUserIdAndSkillSkillNameIgnoreCaseAndOffering(Long userId, String skillName, Boolean offering);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM UserSkill us WHERE us.skill.id = :skillId")
+    void deleteBySkillId(@org.springframework.data.repository.query.Param("skillId") Long skillId);
 }

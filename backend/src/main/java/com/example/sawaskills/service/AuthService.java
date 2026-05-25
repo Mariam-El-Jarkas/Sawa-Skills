@@ -26,6 +26,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final JwtService jwtService;
+    private final PlatformSettingsService platformSettings;
 
     @Value("${github.client.id:}")
     private String githubClientId;
@@ -34,6 +35,8 @@ public class AuthService {
     private String githubClientSecret;
 
     public RegisterResponse register(RegisterRequest request) {
+        if (!platformSettings.isAllowRegistrations())
+            throw new RuntimeException("New registrations are currently disabled");
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
@@ -42,6 +45,8 @@ public class AuthService {
             dob = LocalDate.parse(request.getDateOfBirth());
         }
 
+        boolean requireVerification = platformSettings.isRequireEmailVerification();
+
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
@@ -49,7 +54,7 @@ public class AuthService {
                 .role("USER")
                 .dob(dob)
                 .gender(request.getGender())
-                .verified(false)
+                .verified(!requireVerification)
                 .createdAt(LocalDateTime.now())
                 .build();
         userRepository.save(user);
@@ -62,22 +67,29 @@ public class AuthService {
                 .build();
         authProviderRepository.save(authProvider);
 
-        String otpCode = OtpGenerator.generateOtp();
-        otpVerificationRepository.invalidateAllByEmail(user.getEmail());
-        OtpVerification otp = OtpVerification.builder()
-                .email(user.getEmail())
-                .otpHash(passwordEncoder.encode(otpCode))
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
-                .createdAt(LocalDateTime.now())
-                .used(false)
-                .build();
-        otpVerificationRepository.save(otp);
-        emailService.sendOtpEmail(user.getEmail(), otpCode);
+        if (requireVerification) {
+            String otpCode = OtpGenerator.generateOtp();
+            otpVerificationRepository.invalidateAllByEmail(user.getEmail());
+            OtpVerification otp = OtpVerification.builder()
+                    .email(user.getEmail())
+                    .otpHash(passwordEncoder.encode(otpCode))
+                    .expiresAt(LocalDateTime.now().plusMinutes(10))
+                    .createdAt(LocalDateTime.now())
+                    .used(false)
+                    .build();
+            otpVerificationRepository.save(otp);
+            emailService.sendOtpEmail(user.getEmail(), otpCode);
+            return RegisterResponse.builder()
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .message("User registered successfully. Verify email using OTP.")
+                    .build();
+        }
 
         return RegisterResponse.builder()
                 .userId(user.getId())
                 .email(user.getEmail())
-                .message("User registered successfully. Verify email using OTP.")
+                .message("User registered successfully.")
                 .build();
     }
 

@@ -33,6 +33,7 @@ public class VolunteerService {
     public List<VolunteerSessionResponse> getAllSessions(String email) {
         Long userId = email != null ? userRepository.findByEmail(email).map(User::getId).orElse(null) : null;
         return sessionRepository.findAll().stream()
+                .filter(s -> "APPROVED".equals(s.getStatus()))
                 .map(s -> toResponse(s, userId))
                 .collect(Collectors.toList());
     }

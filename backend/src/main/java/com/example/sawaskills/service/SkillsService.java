@@ -61,12 +61,28 @@ public class SkillsService {
 
     // ── Get categories ────────────────────────────────────────────────────────
 
-    public List<String> getCategories() {
+    public List<Map<String, String>> getCategories() {
         List<SkillCategory> categories = skillCategoryRepository.findAll();
         if (categories.isEmpty()) {
-            return Arrays.asList("Cooking", "Music", "Languages", "Tech", "Art", "Sports", "Business", "Design");
+            return Arrays.asList(
+                Map.of("name", "Cooking",   "iconKey", "Cooking"),
+                Map.of("name", "Music",     "iconKey", "Music"),
+                Map.of("name", "Languages", "iconKey", "Languages"),
+                Map.of("name", "Tech",      "iconKey", "Tech"),
+                Map.of("name", "Art",       "iconKey", "Art"),
+                Map.of("name", "Sports",    "iconKey", "Sports"),
+                Map.of("name", "Business",  "iconKey", "Business"),
+                Map.of("name", "Design",    "iconKey", "Design")
+            );
         }
-        return categories.stream().map(SkillCategory::getName).collect(Collectors.toList());
+        return categories.stream()
+                .map(c -> {
+                    // Fall back to category name so existing categories keep their icon
+                    String iconKey = (c.getIconKey() != null && !c.getIconKey().isBlank())
+                            ? c.getIconKey() : c.getName();
+                    return Map.<String, String>of("name", c.getName(), "iconKey", iconKey);
+                })
+                .collect(Collectors.toList());
     }
 
     // ── Create listing ────────────────────────────────────────────────────────

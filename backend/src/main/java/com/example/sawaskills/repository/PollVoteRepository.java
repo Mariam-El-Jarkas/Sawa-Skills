@@ -12,4 +12,8 @@ public interface PollVoteRepository extends JpaRepository<PollVote, Long> {
     List<PollVote> findByPostId(Long postId);
     Optional<PollVote> findByPostIdAndUserId(Long postId, Long userId);
     long countByPostIdAndSelectedOption(Long postId, String selectedOption);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM PollVote pv WHERE pv.post.id = :postId")
+    void deleteByPostId(@org.springframework.data.repository.query.Param("postId") Long postId);
 }

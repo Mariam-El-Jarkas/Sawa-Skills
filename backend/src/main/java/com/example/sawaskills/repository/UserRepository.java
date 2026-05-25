@@ -34,4 +34,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL AND (u.accountStatus = 'ACTIVE' OR u.accountStatus IS NULL)")
     List<User> findAllActiveUsers();
+
+    @Query("SELECT DISTINCT u FROM User u JOIN VerificationRequest vr ON vr.user = u " +
+           "WHERE u.deletedAt IS NULL AND vr.type = 'MINOR' AND vr.status = 'APPROVED'")
+    List<User> findMinorUsers();
+
+    @Query("SELECT DISTINCT u FROM User u JOIN VerificationRequest vr ON vr.user = u " +
+           "WHERE u.deletedAt IS NULL AND vr.type = 'ADULT' AND vr.status = 'APPROVED'")
+    List<User> findAdultUsers();
+
+    @Query("SELECT DISTINCT u FROM User u JOIN VerificationRequest vr ON vr.user = u " +
+           "WHERE u.deletedAt IS NULL AND vr.type = 'VOLUNTEER' AND vr.status = 'APPROVED'")
+    List<User> findVolunteerBadgeUsers();
 }

@@ -40,12 +40,20 @@ public class PostService {
     private final PollVoteRepository pollVoteRepository;
     private final NotificationService notificationService;
     private final RestTemplate restTemplate;
+    private final PlatformSettingsService platformSettings;
+
+    private static final List<String> SPAM_KEYWORDS = List.of(
+            "buy now", "click here", "free money", "earn from home", "make money fast",
+            "limited offer", "act now", "you have been selected", "congratulations you won",
+            "work from home", "earn $", "100% free", "risk free", "no credit card"
+    );
 
     // ── For You feed ──────────────────────────────────────────────────────────
 
     public List<PostResponse> getPosts(String email) {
         Long userId = resolveUserId(email);
         return postRepository.findByVisibilityOrderByCreatedAtDesc(Post.PostVisibility.EVERYONE).stream()
+                .filter(p -> !p.isAdminHidden())
                 .map(p -> toPostResponse(p, userId, false))
                 .collect(Collectors.toList());
     }
@@ -69,6 +77,7 @@ public class PostService {
                 .collect(Collectors.toList());
         connectedIds.add(user.getId());
         return postRepository.findByAuthorIdsOrderByCreatedAtDesc(connectedIds).stream()
+                .filter(p -> !p.isAdminHidden())
                 .map(p -> toPostResponse(p, user.getId(), false))
                 .collect(Collectors.toList());
     }
@@ -88,6 +97,7 @@ public class PostService {
         if (skills.isEmpty()) return Collections.emptyList();
 
         List<Post> candidates = postRepository.findByVisibilityOrderByCreatedAtDesc(Post.PostVisibility.EVERYONE).stream()
+                .filter(p -> !p.isAdminHidden())
                 .filter(p -> !p.getAuthor().getId().equals(user.getId()))
                 .limit(50)
                 .collect(Collectors.toList());
@@ -205,6 +215,8 @@ public class PostService {
             visibility = Post.PostVisibility.FOLLOWERS;
         }
 
+        boolean autoHide = platformSettings.isAutoModeration() && isSpam(request.getContent());
+
         Post post = Post.builder()
                 .content(request.getContent())
                 .imageUrl(imageUrl)
@@ -213,6 +225,7 @@ public class PostService {
                 .pollOptions(request.getPollOptions())
                 .visibility(visibility)
                 .author(user)
+                .adminHidden(autoHide)
                 .createdAt(LocalDateTime.now())
                 .build();
         post = postRepository.save(post);
@@ -241,7 +254,8 @@ public class PostService {
         postLikeRepository.deleteByPostId(postId);
         reportRepository.deleteByReportedPostId(postId);
         postShareRepository.deleteByPostId(postId);
-        
+        pollVoteRepository.deleteByPostId(postId);
+
         List<Comment> comments = commentRepository.findByPostId(postId);
         for (Comment c : comments) {
             commentLikeRepository.deleteByCommentId(c.getId());
@@ -414,6 +428,22 @@ public class PostService {
                 .status("PENDING")
                 .createdAt(LocalDateTime.now())
                 .build());
+
+        // Auto-suspend if report count reaches threshold
+        User author = post.getAuthor();
+        if (author != null && !"SUSPENDED".equals(author.getAccountStatus()) && !"BANNED".equals(author.getAccountStatus())) {
+            long totalReports = reportRepository.countByReportedPostAuthorId(author.getId());
+            if (totalReports >= platformSettings.getAutoSuspendThreshold()) {
+                author.setAccountStatus("SUSPENDED");
+                userRepository.save(author);
+            }
+        }
+    }
+
+    private boolean isSpam(String content) {
+        if (content == null || content.isBlank()) return false;
+        String lower = content.toLowerCase();
+        return SPAM_KEYWORDS.stream().anyMatch(lower::contains);
     }
 
     // ── Notification helpers ──────────────────────────────────────────────────

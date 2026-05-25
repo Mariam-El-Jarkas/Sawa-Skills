@@ -70,9 +70,9 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {loading ? Array(4).fill(0).map((_, i) => <Sk key={i} />) : <>
             <KpiCard title="Total Users"   value={stats?.totalUsers}    label="All registered" up={true}  icon={<Users size={18} className="text-primary-600" />} iconBg="bg-primary-50" />
-            <KpiCard title="Active Today"  value={stats?.activeToday}   label="Registered today" up={true} icon={<Activity size={18} className="text-green-600" />} iconBg="bg-green-50" />
-            <KpiCard title="Total Swaps"   value={stats?.totalSwaps}    label={`${stats?.completedSwaps ?? 0} completed`} up={true} icon={<ArrowLeftRight size={18} className="text-blue-600" />} iconBg="bg-blue-50" />
-            <KpiCard title="Messages Sent" value={stats?.totalMessages} label="All time" up={true} icon={<MessageCircle size={18} className="text-teal-600" />} iconBg="bg-teal-50" />
+            <KpiCard title="Active Today"  value={stats?.activeToday}   label="Registered today" up={true} icon={<Activity size={18} className="text-primary-700" />} iconBg="bg-primary-100" />
+            <KpiCard title="Total Swaps"   value={stats?.totalSwaps}    label={`${stats?.completedSwaps ?? 0} completed`} up={true} icon={<ArrowLeftRight size={18} className="text-primary-600" />} iconBg="bg-primary-50" />
+            <KpiCard title="Messages Sent" value={stats?.totalMessages} label="All time" up={true} icon={<MessageCircle size={18} className="text-primary-600" />} iconBg="bg-primary-100" />
           </>}
         </div>
       </div>
@@ -82,8 +82,8 @@ export default function AnalyticsPage() {
           {loading ? Array(4).fill(0).map((_, i) => <Sk key={i} />) : <>
             <KpiCard title="Pending Verifications" value={stats?.pendingVerifications} label="Awaiting review" up={false} icon={<ShieldCheck size={18} className="text-yellow-600" />} iconBg="bg-yellow-50" />
             <KpiCard title="Pending Reports"       value={stats?.pendingReports}       label="Requires action" up={false} icon={<Flag size={18} className="text-red-600" />} iconBg="bg-red-50" />
-            <KpiCard title="Volunteer Sessions"    value={stats?.totalSessions}        label="Total sessions" up={true}  icon={<Heart size={18} className="text-pink-600" />} iconBg="bg-pink-50" />
-            <KpiCard title="Total Posts"           value={stats?.totalPosts}           label="All time" up={true}  icon={<FileText size={18} className="text-indigo-600" />} iconBg="bg-indigo-50" />
+            <KpiCard title="Volunteer Sessions"    value={stats?.totalSessions}        label="Total sessions" up={true}  icon={<Heart size={18} className="text-primary-600" />} iconBg="bg-primary-50" />
+            <KpiCard title="Total Posts"           value={stats?.totalPosts}           label="All time" up={true}  icon={<FileText size={18} className="text-primary-700" />} iconBg="bg-primary-100" />
           </>}
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
             <p className="text-sm text-gray-400 text-center py-8">No completed swaps yet</p>
           ) : topUsers.map((u, i) => (
             <div key={u.id} className="flex items-center gap-4 px-5 py-3.5">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i === 0 ? 'bg-yellow-100 text-yellow-700' : i === 1 ? 'bg-gray-100 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>{i + 1}</span>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i === 0 ? 'bg-primary-600 text-white' : i === 1 ? 'bg-primary-200 text-primary-800' : i === 2 ? 'bg-primary-100 text-primary-700' : 'bg-gray-50 text-gray-400'}`}>{i + 1}</span>
               <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0"><span className="text-white text-xs font-bold">{u.name?.[0] ?? '?'}</span></div>
               <div className="flex-1 min-w-0"><span className="text-sm font-medium text-gray-800 block truncate">{u.name}</span><span className="text-xs text-gray-400 truncate">{u.email}</span></div>
             </div>

@@ -20,4 +20,7 @@ public class SkillCategory {
 
     private String description;
 
+    @Builder.Default
+    private String iconKey = "Other";
+
 }

@@ -1,3 +1,4 @@
+import logo from '../../assets/logo.png'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Users, BookOpen, FileText, ArrowLeftRight, Flag, ShieldCheck, Heart, Bell, BarChart3, ScrollText, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
@@ -41,7 +42,7 @@ export default function Sidebar() {
   return (
     <aside className={clsx('h-screen flex flex-col bg-white border-r border-gray-100 transition-all duration-300 relative flex-shrink-0', collapsed ? 'w-16' : 'w-60')}>
       <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100">
-        <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0"><span className="text-white font-bold text-sm">SS</span></div>
+        <img src={logo} alt="Sawa Skills" className="w-8 h-8 rounded-lg flex-shrink-0 object-cover" />
         {!collapsed && <div><p className="font-bold text-gray-900 text-sm">Sawa Skills</p><p className="text-xs text-gray-400">Admin Panel</p></div>}
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">

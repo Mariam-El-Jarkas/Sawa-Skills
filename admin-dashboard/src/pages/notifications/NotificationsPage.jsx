@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Send, Plus, Bell } from 'lucide-react'
+import { Send, Plus, Bell, Trash2 } from 'lucide-react'
 import { PageHeader, Table, Modal, AlertBanner } from '../../components/ui'
 import { adminApi } from '../../api/adminApi'
 import { useAuthStore } from '../../store/authStore'
@@ -35,6 +35,11 @@ export default function NotificationsPage() {
 
   useEffect(() => { if (token) load() }, [token, load])
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this broadcast?')) return
+    try { await adminApi.deleteBroadcast(token, id); await load() } catch (e) { alert(`Failed: ${e.message}`) }
+  }
+
   const handleSend = async () => {
     if (!form.title.trim() || !form.message.trim()) return
     try {
@@ -62,7 +67,7 @@ export default function NotificationsPage() {
           ))}
         </div>
         <div className="card">
-          <Table headers={['Title', 'Message', 'Audience', 'Sent At', 'Recipients', 'Status']} empty={!loading && broadcasts.length === 0} loading={loading}>
+          <Table headers={['Title', 'Message', 'Audience', 'Sent At', 'Recipients', 'Status', '']} empty={!loading && broadcasts.length === 0} loading={loading}>
             {broadcasts.map(n => (
               <tr key={n.id} className="table-row">
                 <td className="table-td font-medium text-gray-900">{n.title}</td>
@@ -71,6 +76,9 @@ export default function NotificationsPage() {
                 <td className="table-td text-gray-500 text-xs">{fmtDate(n.sentAt)}</td>
                 <td className="table-td font-semibold text-gray-800">{(n.recipientCount ?? 0).toLocaleString()}</td>
                 <td className="table-td"><span className="badge badge-green">Sent</span></td>
+                <td className="table-td">
+                  <button onClick={() => handleDelete(n.id)} className="p-1.5 hover:bg-red-50 rounded text-red-400 hover:text-red-600 transition-colors" title="Delete"><Trash2 size={14} /></button>
+                </td>
               </tr>
             ))}
           </Table>
@@ -96,7 +104,11 @@ export default function NotificationsPage() {
             <div><label className="label">Message</label><textarea className="input resize-none h-24" placeholder="Write your announcement..." value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} /></div>
             <div><label className="label">Target Audience</label>
               <select className="input" value={form.audience} onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}>
-                <option value="ALL">All Users</option><option value="VERIFIED">Verified Users Only</option><option value="VOLUNTEERS">Volunteers Only</option>
+                <option value="ALL">All Users</option>
+                <option value="VERIFIED">Verified Users (any badge)</option>
+                <option value="MINOR">Minor Users</option>
+                <option value="ADULT">Adult Users (16+)</option>
+                <option value="VOLUNTEERS">Volunteer Users</option>
               </select>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">⚠️ This will send an in-app notification to all selected users immediately.</div>

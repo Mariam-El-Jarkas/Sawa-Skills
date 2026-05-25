@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { skillsService, SkillListing, UserSkill, BrowseParams } from '../services/skillsService';
+import { skillsService, SkillListing, UserSkill, BrowseParams, CategoryItem } from '../services/skillsService';
 import { useAuth } from '../contexts/AuthContext';
 
 const PAGE_SIZE = 20;
@@ -57,7 +57,7 @@ export function useSkills(): SkillsState & SkillsActions {
 
   // ── Load categories once on mount ─────────────────────────────────────────
   useEffect(() => {
-    skillsService.getCategories().then(setCategories).catch(() => {});
+    skillsService.getCategories().then(items => setCategories(items.map((c: CategoryItem) => c.name))).catch(() => {});
   }, []);
 
   // ── Browse listings (debounced, resets to page 0) ─────────────────────────

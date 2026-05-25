@@ -10,13 +10,14 @@ import {
   Award, ChevronRight, Edit3, Calendar, ArrowLeftRight, X,
   UtensilsCrossed, Music2, Globe, Monitor, Palette, Trophy,
   Briefcase, PenTool, BookOpen, Dumbbell, Star, Check, Clock,
+  Camera, FlaskConical, Hammer, Leaf, Microscope, Shirt, Plane,
 } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useHomeData } from '../../hooks/useHomeData';
 import { homeService } from '../../services/homeService';
 import { volunteerService, VolunteerSession } from '../../services/volunteerService';
-import { skillsService } from '../../services/skillsService';
+import { skillsService, CategoryItem } from '../../services/skillsService';
 import { useToast } from '../../components/modals/AppToast';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -24,17 +25,25 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 type CatMeta = { Icon: React.ComponentType<{ size: number; color: string }> };
 const FEATURED_ICONS: Record<string, CatMeta> = {
-  Cooking:   { Icon: UtensilsCrossed },
-  Music:     { Icon: Music2          },
-  Languages: { Icon: Globe           },
-  Tech:      { Icon: Monitor         },
-  Art:       { Icon: Palette         },
-  Sports:    { Icon: Trophy          },
-  Business:  { Icon: Briefcase       },
-  Design:    { Icon: PenTool         },
-  Health:    { Icon: Heart           },
-  Education: { Icon: BookOpen        },
-  Other:     { Icon: Star            },
+  Cooking:     { Icon: UtensilsCrossed },
+  Music:       { Icon: Music2          },
+  Languages:   { Icon: Globe           },
+  Tech:        { Icon: Monitor         },
+  Art:         { Icon: Palette         },
+  Sports:      { Icon: Trophy          },
+  Business:    { Icon: Briefcase       },
+  Design:      { Icon: PenTool         },
+  Health:      { Icon: Heart           },
+  Education:   { Icon: BookOpen        },
+  Photography: { Icon: Camera          },
+  Fitness:     { Icon: Dumbbell        },
+  Science:     { Icon: FlaskConical    },
+  Crafts:      { Icon: Hammer          },
+  Nature:      { Icon: Leaf            },
+  Research:    { Icon: Microscope      },
+  Fashion:     { Icon: Shirt           },
+  Travel:      { Icon: Plane           },
+  Other:       { Icon: Star            },
 };
 const DEFAULT_CAT_META: CatMeta = { Icon: Sparkles };
 const CAT_ICON_COLOR = '#7C3AED';
@@ -80,7 +89,7 @@ export default function HomeScreen() {
   const { isLoggedIn, user, token, setShowLoginPrompt } = useAuth();
   const { stats, trending, isLoading, refresh } = useHomeData();
 
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [sessions, setSessions] = useState<VolunteerSession[]>([]);
   const [joiningId, setJoiningId] = useState<number | null>(null);
   const [confirmingSessionId, setConfirmingSessionId] = useState<number | null>(null);
@@ -527,15 +536,15 @@ export default function HomeScreen() {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {categories.map(cat => {
-                const meta = FEATURED_ICONS[cat] ?? DEFAULT_CAT_META;
+                const meta = FEATURED_ICONS[cat.iconKey] ?? DEFAULT_CAT_META;
                 const CatIcon = meta.Icon;
                 return (
-                <TouchableOpacity key={cat} style={s.featCard} onPress={() => router.navigate('/(tabs)/skills')}>
+                <TouchableOpacity key={cat.name} style={s.featCard} onPress={() => router.navigate('/(tabs)/skills')}>
                   <View style={[s.featImg, { backgroundColor: FEATURED_BG }]}>
                     <CatIcon size={30} color={CAT_ICON_COLOR} />
                   </View>
                   <View style={s.featInfo}>
-                    <Text style={s.featTitle}>{cat}</Text>
+                    <Text style={s.featTitle}>{cat.name}</Text>
                     <Text style={s.featSub}>Explore →</Text>
                   </View>
                 </TouchableOpacity>

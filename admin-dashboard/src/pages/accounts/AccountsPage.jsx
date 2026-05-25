@@ -6,7 +6,7 @@ import clsx from 'clsx'
 
 const ROLE_BADGE = {
   super_admin: 'badge-purple',
-  moderator: 'badge-blue',
+  moderator: 'badge-purple',
   support: 'badge-gray',
 }
 
@@ -54,7 +54,7 @@ export default function AccountsPage() {
               </td>
               <td className="table-td">
                 <div className="flex gap-1">
-                  <button title="Reset Password" className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600">
+                  <button title="Reset Password" className="p-1.5 hover:bg-primary-50 rounded text-primary-600">
                     <ShieldCheck size={15} />
                   </button>
                   {admin.role !== 'super_admin' && (
@@ -96,7 +96,7 @@ export default function AccountsPage() {
               <label className="label">Temporary Password</label>
               <input className="input" type="password" placeholder="Min 8 characters" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} />
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+            <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-700">
               ℹ️ The new admin will be prompted to change their password on first login.
             </div>
             <div className="flex gap-2 pt-1">

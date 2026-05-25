@@ -2,6 +2,11 @@ import { apiGet, apiPost, apiPatch, apiDelete } from './api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface CategoryItem {
+  name: string;
+  iconKey: string;
+}
+
 export interface SkillListing {
   id: number;
   ownerId: number;
@@ -48,8 +53,8 @@ export const skillsService = {
     return apiGet<SkillListing[]>(`/api/skills${qs}`, token);
   },
 
-  getCategories(): Promise<string[]> {
-    return apiGet<string[]>('/api/skills/categories');
+  getCategories(): Promise<CategoryItem[]> {
+    return apiGet<CategoryItem[]>('/api/skills/categories');
   },
 
   createListing(data: { offeredSkill: string; wantedSkill: string; location?: string; availability?: string; isFree?: boolean }, token: string): Promise<SkillListing> {

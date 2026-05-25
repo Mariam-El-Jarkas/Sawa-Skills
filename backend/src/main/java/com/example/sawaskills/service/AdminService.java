@@ -20,21 +20,28 @@ import java.util.stream.Collectors;
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final AuthProviderRepository authProviderRepository;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     private final PostRepository postRepository;
     private final PostLikeRepository postLikeRepository;
     private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
+    private final PostShareRepository postShareRepository;
+    private final PollVoteRepository pollVoteRepository;
     private final ReportRepository reportRepository;
     private final SwapRequestRepository swapRequestRepository;
     private final VolunteerSessionRepository volunteerSessionRepository;
     private final VolunteerParticipantRepository volunteerParticipantRepository;
     private final SkillCategoryRepository skillCategoryRepository;
     private final SkillRepository skillRepository;
+    private final UserSkillRepository userSkillRepository;
     private final NotificationRepository notificationRepository;
     private final MessageRepository messageRepository;
     private final ActivityLogRepository activityLogRepository;
     private final PlatformSettingRepository platformSettingRepository;
     private final AdminBroadcastRepository adminBroadcastRepository;
     private final VerificationRequestRepository verificationRequestRepository;
+    private final PlatformSettingsService platformSettingsService;
 
     // ── Stats ────────────────────────────────────────────────────────────────
 
@@ -157,6 +164,7 @@ public class AdminService {
                     if ("hidden".equals(status)) return p.isAdminHidden();
                     if ("visible".equals(status)) return !p.isAdminHidden();
                     if ("reported".equals(status)) return reportRepository.countByReportedPostId(p.getId()) > 0;
+                    if ("deleted".equals(status)) return p.getAuthor() != null && p.getAuthor().getDeletedAt() != null;
                     return true;
                 })
                 .map(p -> AdminPostResponse.builder()
@@ -181,8 +189,35 @@ public class AdminService {
     @Transactional
     public void deletePost(Long id) {
         Post p = postRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        reportRepository.deleteByReportedPostId(id); postLikeRepository.deleteByPostId(id);
-        commentRepository.deleteByPostId(id); postRepository.delete(p);
+        postLikeRepository.deleteByPostId(id);
+        reportRepository.deleteByReportedPostId(id);
+        postShareRepository.deleteByPostId(id);
+        pollVoteRepository.deleteByPostId(id);
+        commentRepository.findByPostId(id).forEach(c -> commentLikeRepository.deleteByCommentId(c.getId()));
+        commentRepository.deleteByPostId(id);
+        postRepository.delete(p);
+    }
+
+    public List<AdminCommentResponse> getPostComments(Long postId) {
+        postRepository.findById(postId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return commentRepository.findByPostIdOrderByCreatedAtAsc(postId).stream()
+                .map(c -> AdminCommentResponse.builder()
+                        .id(c.getId()).postId(postId)
+                        .content(c.getContent())
+                        .authorId(c.getAuthor() != null ? c.getAuthor().getId() : null)
+                        .authorName(c.getAuthor() != null ? c.getAuthor().getName() : "Unknown")
+                        .authorEmail(c.getAuthor() != null ? c.getAuthor().getEmail() : "")
+                        .likeCount(commentLikeRepository.countByCommentId(c.getId()))
+                        .createdAt(c.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteComment(Long commentId) {
+        commentRepository.findById(commentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        commentLikeRepository.deleteByCommentId(commentId);
+        commentRepository.deleteById(commentId);
     }
 
     // ── Reports ──────────────────────────────────────────────────────────────
@@ -255,20 +290,27 @@ public class AdminService {
     public List<AdminSkillCategoryResponse> getSkillCategories() {
         return skillCategoryRepository.findAll().stream().map(cat -> {
             List<Skill> skills = skillRepository.findByCategory_Id(cat.getId());
-            return AdminSkillCategoryResponse.builder().id(cat.getId()).name(cat.getName()).description(cat.getDescription())
+            return AdminSkillCategoryResponse.builder().id(cat.getId()).name(cat.getName())
+                    .description(cat.getDescription()).iconKey(cat.getIconKey())
                     .skillCount(skills.size()).skills(skills.stream().map(s -> new AdminSkillDto(s.getId(), s.getSkillName())).collect(Collectors.toList())).build();
         }).collect(Collectors.toList());
     }
 
-    public AdminSkillCategoryResponse createSkillCategory(String name, String description) {
-        SkillCategory cat = skillCategoryRepository.save(SkillCategory.builder().name(name).description(description).build());
-        return AdminSkillCategoryResponse.builder().id(cat.getId()).name(cat.getName()).description(cat.getDescription()).skillCount(0).skills(List.of()).build();
+    public AdminSkillCategoryResponse createSkillCategory(String name, String description, String iconKey) {
+        SkillCategory cat = skillCategoryRepository.save(
+            SkillCategory.builder().name(name).description(description).iconKey(iconKey != null ? iconKey : "Other").build()
+        );
+        return AdminSkillCategoryResponse.builder().id(cat.getId()).name(cat.getName())
+                .description(cat.getDescription()).iconKey(cat.getIconKey()).skillCount(0).skills(List.of()).build();
     }
 
     @Transactional
     public void deleteSkillCategory(Long id) {
         skillCategoryRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        skillRepository.deleteByCategoryId(id); skillCategoryRepository.deleteById(id);
+        // Remove user_skills rows first — they reference Skill via FK and block deletion
+        skillRepository.findByCategory_Id(id).forEach(skill -> userSkillRepository.deleteBySkillId(skill.getId()));
+        skillRepository.deleteByCategoryId(id);
+        skillCategoryRepository.deleteById(id);
     }
 
     public AdminSkillDto addSkillToCategory(Long categoryId, String skillName) {
@@ -277,8 +319,25 @@ public class AdminService {
         return new AdminSkillDto(skill.getId(), skill.getSkillName());
     }
 
+    @Transactional
+    public void revokeBadge(Long userId, String type) {
+        String normalised = type.toUpperCase();
+        if (!java.util.Set.of("ADULT", "MINOR", "VOLUNTEER").contains(normalised))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid badge type: " + type);
+
+        VerificationRequest req = verificationRequestRepository
+                .findTopByUserIdAndTypeAndStatusOrderBySubmittedAtDesc(userId, normalised, "APPROVED")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No approved " + normalised + " badge found for this user"));
+
+        req.setStatus("REVOKED");
+        verificationRequestRepository.save(req);
+    }
+
+    @Transactional
     public void removeSkill(Long skillId) {
         skillRepository.findById(skillId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        userSkillRepository.deleteBySkillId(skillId);
         skillRepository.deleteById(skillId);
     }
 
@@ -292,6 +351,11 @@ public class AdminService {
     }
 
     @Transactional
+    public void deleteBroadcast(Long id) {
+        adminBroadcastRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        adminBroadcastRepository.deleteById(id);
+    }
+
     public AdminBroadcastResponse sendBroadcast(String title, String message, String audience) {
         List<User> recipients = resolveAudience(audience);
         LocalDateTime now = LocalDateTime.now();
@@ -327,6 +391,29 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
+    // ── Admin Profile ─────────────────────────────────────────────────────────
+
+    @Transactional
+    public void updateAdminName(String email, String newName) {
+        if (newName == null || newName.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name cannot be empty");
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        user.setName(newName.trim());
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void changeAdminPassword(String email, String currentPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 8 characters");
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        AuthProvider auth = authProviderRepository.findByUserAndProvider(user, com.example.sawaskills.entity.AuthenticationProvider.LOCAL)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No local password set for this account"));
+        if (!passwordEncoder.matches(currentPassword, auth.getPasswordHash()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
+        auth.setPasswordHash(passwordEncoder.encode(newPassword));
+        authProviderRepository.save(auth);
+    }
+
     // ── Settings ─────────────────────────────────────────────────────────────
 
     public Map<String, String> getSettings() {
@@ -345,6 +432,7 @@ public class AdminService {
             PlatformSetting s = platformSettingRepository.findBySettingKey(k).orElse(PlatformSetting.builder().settingKey(k).build());
             s.setSettingValue(v); s.setUpdatedAt(LocalDateTime.now()); platformSettingRepository.save(s);
         });
+        platformSettingsService.refresh();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -362,9 +450,11 @@ public class AdminService {
     private List<User> resolveAudience(String audience) {
         if (audience == null) return List.of();
         return switch (audience.toUpperCase()) {
-            case "VERIFIED" -> userRepository.findVerifiedUsers();
-            case "VOLUNTEERS" -> userRepository.findByRoleAndDeletedAtIsNull("VOLUNTEER");
-            default -> userRepository.findAllActiveUsers();
+            case "VERIFIED"   -> userRepository.findVerifiedUsers();
+            case "MINOR"      -> userRepository.findMinorUsers();
+            case "ADULT"      -> userRepository.findAdultUsers();
+            case "VOLUNTEERS" -> userRepository.findVolunteerBadgeUsers();
+            default           -> userRepository.findAllActiveUsers();
         };
     }
 

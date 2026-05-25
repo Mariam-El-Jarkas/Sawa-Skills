@@ -4,6 +4,8 @@ import * as SecureStore from 'expo-secure-store';
 
 // ── Base URL (mirrors AuthContext logic) ──────────────────────────────────────
 export const getBaseUrl = (): string => {
+  const envUrl = (Constants.expoConfig?.extra as Record<string, string> | undefined)?.apiUrl;
+  if (envUrl) return envUrl;
   if (Platform.OS === 'web') return 'http://localhost:8080';
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   if (host && host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:8080`;

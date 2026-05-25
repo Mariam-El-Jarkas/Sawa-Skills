@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, Eye, ShieldCheck, Clock, Award, Mail } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, ShieldCheck, Clock, Award, Mail, ShieldOff } from 'lucide-react'
 import { PageHeader, Table, Modal, ConfirmDialog } from '../../components/ui'
+import { adminApi } from '../../api/adminApi'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
 const STATUS_BADGE = {
-  PENDING: 'bg-yellow-100 text-yellow-700',
+  PENDING:        'bg-yellow-100 text-yellow-700',
   PENDING_PARENT: 'bg-orange-100 text-orange-700',
-  PENDING_ADMIN: 'bg-blue-100 text-blue-600',
-  APPROVED: 'bg-green-100 text-green-700',
-  REJECTED: 'bg-red-100 text-red-700',
+  PENDING_ADMIN:  'bg-primary-100 text-primary-700',
+  APPROVED:       'bg-green-100 text-green-700',
+  REJECTED:       'bg-red-100 text-red-700',
+  REVOKED:        'bg-gray-100 text-gray-500',
 }
 
-const BASE_URL = 'http://localhost:8080'
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
 export default function VerificationPage() {
   const { token, logout } = useAuthStore()
@@ -23,100 +25,89 @@ export default function VerificationPage() {
   const [fetchError, setFetchError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
   const [tab, setTab] = useState('ADULT')
 
-  useEffect(() => {
-    if (token) fetchRequests()
-  }, [token])
+  useEffect(() => { if (token) fetchRequests() }, [token])
 
   const fetchRequests = async () => {
     if (!token) return
-    setLoading(true)
-    setFetchError(null)
+    setLoading(true); setFetchError(null)
     try {
       const res = await fetch(`${BASE_URL}/api/verification/admin/requests`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      if (res.status === 401) {
-        logout()
-        navigate('/login')
-        return
-      }
-      if (res.ok) {
-        const data = await res.json()
-        setRequests(data)
-      } else {
-        setFetchError(`Error ${res.status}: Failed to fetch`)
-      }
-    } catch (error) {
-      console.error('Failed to fetch requests:', error)
-      setFetchError('Failed to connect to backend server')
-    } finally {
-      setLoading(false)
-    }
+      if (res.status === 401) { logout(); navigate('/login'); return }
+      if (res.ok) setRequests(await res.json())
+      else setFetchError(`Error ${res.status}: Failed to fetch`)
+    } catch { setFetchError('Failed to connect to backend server') }
+    finally { setLoading(false) }
   }
 
   const handleUpdateStatus = async (id, status) => {
+    setConfirmLoading(true)
     try {
       const res = await fetch(`${BASE_URL}/api/verification/admin/requests/${id}/status`, {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status })
       })
-      if (res.ok) {
-        fetchRequests()
-        setConfirm(null)
-        setSelected(null)
+      if (res.ok) { await fetchRequests(); setConfirm(null); setSelected(null) }
+    } catch { /* ignore */ }
+    finally { setConfirmLoading(false) }
+  }
+
+  const handleRevoke = async (userId, type, userName) => {
+    setConfirm({
+      msg: `Revoke the ${type.charAt(0) + type.slice(1).toLowerCase()} badge from ${userName}? They will lose access to features that require this badge.`,
+      danger: true,
+      onConfirm: async () => {
+        setConfirmLoading(true)
+        try {
+          await adminApi.revokeBadge(token, userId, type)
+          await fetchRequests()
+          setConfirm(null)
+          setSelected(null)
+        } catch (e) { alert(`Failed: ${e.message}`) }
+        finally { setConfirmLoading(false) }
       }
-    } catch (error) {
-      console.error('Failed to update status:', error)
-    }
+    })
   }
 
   const filtered = requests.filter(v => v.type === tab)
-  const adultPending = requests.filter(v => v.type === 'ADULT' && v.status === 'PENDING').length
-  const minorPending = requests.filter(v => v.type === 'MINOR' && (v.status === 'PENDING_PARENT' || v.status === 'PENDING_ADMIN')).length
+  const adultPending    = requests.filter(v => v.type === 'ADULT'     && v.status === 'PENDING').length
+  const minorPending    = requests.filter(v => v.type === 'MINOR'     && ['PENDING_PARENT','PENDING_ADMIN'].includes(v.status)).length
   const volunteerPending = requests.filter(v => v.type === 'VOLUNTEER' && v.status === 'PENDING').length
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—'
-    return new Date(dateStr).toLocaleDateString()
-  }
+  const formatDate = d => d ? new Date(d).toLocaleDateString() : '—'
 
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Verification Management" 
-        subtitle="Review and process user identity & volunteer applications" 
+      <PageHeader
+        title="Verification Management"
+        subtitle="Review, approve, reject or revoke user identity & volunteer badges"
       />
 
-      {/* Modern Tab Switcher */}
+      {/* Tabs */}
       <div className="flex p-1 bg-gray-100/50 rounded-xl w-fit">
         {[
-          { id: 'ADULT', label: 'Adults', icon: ShieldCheck, count: adultPending },
-          { id: 'MINOR', label: 'Minors', icon: Clock, count: minorPending },
-          { id: 'VOLUNTEER', label: 'Volunteers', icon: Award, count: volunteerPending },
+          { id: 'ADULT',     label: 'Adults',     icon: ShieldCheck, count: adultPending    },
+          { id: 'MINOR',     label: 'Minors',     icon: Clock,       count: minorPending    },
+          { id: 'VOLUNTEER', label: 'Volunteers', icon: Award,       count: volunteerPending },
         ].map(({ id, label, icon: Icon, count }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
             className={clsx(
               'flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold transition-all',
-              tab === id
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+              tab === id ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
           >
             <Icon size={16} />
             {label}
             {count > 0 && (
-              <span className={clsx(
-                'ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold',
-                tab === id ? 'bg-primary-100 text-primary-700' : 'bg-red-100 text-red-600'
-              )}>
+              <span className={clsx('ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold',
+                tab === id ? 'bg-primary-100 text-primary-700' : 'bg-red-100 text-red-600')}>
                 {count}
               </span>
             )}
@@ -132,10 +123,7 @@ export default function VerificationPage() {
       )}
 
       <div className="card overflow-hidden">
-        <Table 
-          headers={['User', 'Full Name', 'Date Submitted', 'Status', 'Actions']}
-          empty={filtered.length === 0}
-        >
+        <Table headers={['User', 'Full Name', 'Date Submitted', 'Status', 'Actions']} empty={filtered.length === 0}>
           {filtered.map(req => (
             <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
               <td className="px-5 py-4">
@@ -153,25 +141,34 @@ export default function VerificationPage() {
               <td className="px-5 py-4 text-sm text-gray-500">{formatDate(req.submittedAt)}</td>
               <td className="px-5 py-4">
                 <span className={clsx('px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider', STATUS_BADGE[req.status])}>
-                  {req.status === 'PENDING_PARENT' ? 'Waiting for Parent' : 
-                   req.status === 'PENDING_ADMIN' ? 'Parent Approved' : 
-                   req.status}
+                  {req.status === 'PENDING_PARENT' ? 'Waiting for Parent'
+                    : req.status === 'PENDING_ADMIN' ? 'Parent Approved'
+                    : req.status}
                 </span>
               </td>
               <td className="px-5 py-4 text-right">
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => setSelected(req)} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all">
+                  <button onClick={() => setSelected(req)} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all" title="View details">
                     <Eye size={18} />
                   </button>
                   {['PENDING', 'PENDING_ADMIN'].includes(req.status) && (
                     <>
-                      <button onClick={() => setConfirm({ id: req.id, status: 'APPROVED' })} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all">
+                      <button onClick={() => setConfirm({ id: req.id, status: 'APPROVED' })} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Approve">
                         <CheckCircle size={18} />
                       </button>
-                      <button onClick={() => setConfirm({ id: req.id, status: 'REJECTED' })} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                      <button onClick={() => setConfirm({ id: req.id, status: 'REJECTED' })} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Reject">
                         <XCircle size={18} />
                       </button>
                     </>
+                  )}
+                  {req.status === 'APPROVED' && (
+                    <button
+                      onClick={() => handleRevoke(req.user?.id, req.type, req.user?.name)}
+                      className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+                      title="Revoke badge"
+                    >
+                      <ShieldOff size={18} />
+                    </button>
                   )}
                 </div>
               </td>
@@ -182,15 +179,17 @@ export default function VerificationPage() {
 
       {/* Details Modal */}
       {selected && (
-        <Modal 
-          title={`${tab.charAt(0) + tab.slice(1).toLowerCase()} Verification: ${selected.user?.name}`} 
+        <Modal
+          title={`${tab.charAt(0) + tab.slice(1).toLowerCase()} Verification: ${selected.user?.name}`}
           onClose={() => setSelected(null)}
         >
           <div className="space-y-6">
             <div className="bg-gray-50 p-4 rounded-xl space-y-3">
               <div className="flex justify-between">
                 <span className="text-xs font-bold text-gray-400 uppercase">Submission Detail</span>
-                <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold uppercase', STATUS_BADGE[selected.status])}>{selected.status}</span>
+                <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold uppercase', STATUS_BADGE[selected.status])}>
+                  {selected.status}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -227,8 +226,8 @@ export default function VerificationPage() {
             {selected.type === 'VOLUNTEER' && (
               <div className="space-y-4">
                 {[
-                  { lbl: 'Motivation', val: selected.why },
-                  { lbl: 'Experience', val: selected.experience },
+                  { lbl: 'Motivation',     val: selected.why },
+                  { lbl: 'Experience',     val: selected.experience },
                   { lbl: 'Skills to share', val: selected.skillsToShare }
                 ].map(f => (
                   <div key={f.lbl} className="space-y-1">
@@ -243,36 +242,54 @@ export default function VerificationPage() {
               <div className="grid grid-cols-2 gap-4">
                 {[
                   { lbl: 'Front ID', path: selected.idFrontImage },
-                  { lbl: 'Back ID', path: selected.idBackImage },
-                  { lbl: 'Selfie', path: selected.selfieImage }
+                  { lbl: 'Back ID',  path: selected.idBackImage  },
+                  { lbl: 'Selfie',   path: selected.selfieImage  }
                 ].map((img, i) => (
-                  <div key={i} className={clsx("space-y-2", i === 2 && "col-span-2")}>
+                  <div key={i} className={clsx('space-y-2', i === 2 && 'col-span-2')}>
                     <label className="text-[10px] font-bold text-gray-400 uppercase">{img.lbl}</label>
                     <div className="aspect-[4/3] rounded-xl overflow-hidden border-2 border-gray-100 bg-gray-50">
-                      {img.path ? (
-                        <img src={`${BASE_URL}${img.path}`} alt={img.lbl} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 font-medium">No image uploaded</div>
-                      )}
+                      {img.path
+                        ? <img src={`${BASE_URL}${img.path}`} alt={img.lbl} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 font-medium">No image uploaded</div>
+                      }
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* Action buttons based on status */}
             {['PENDING', 'PENDING_ADMIN'].includes(selected.status) && (
               <div className="flex gap-4 pt-4 border-t">
-                <button 
+                <button
                   onClick={() => setConfirm({ id: selected.id, status: 'APPROVED' })}
                   className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors shadow-sm"
                 >
                   Approve Application
                 </button>
-                <button 
+                <button
                   onClick={() => setConfirm({ id: selected.id, status: 'REJECTED' })}
                   className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors shadow-sm"
                 >
                   Reject Application
+                </button>
+              </div>
+            )}
+
+            {selected.status === 'APPROVED' && (
+              <div className="pt-4 border-t">
+                <div className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl mb-4">
+                  <ShieldOff size={16} className="text-orange-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-orange-700 leading-relaxed">
+                    Revoking this badge will immediately remove the user's access to features that require it. They can re-apply at any time.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleRevoke(selected.user?.id, selected.type, selected.user?.name)}
+                  className="w-full py-3 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                >
+                  <ShieldOff size={16} />
+                  Revoke {selected.type.charAt(0) + selected.type.slice(1).toLowerCase()} Badge
                 </button>
               </div>
             )}
@@ -283,9 +300,10 @@ export default function VerificationPage() {
       {/* Confirmation Dialog */}
       {confirm && (
         <ConfirmDialog
-          message={`Are you sure you want to set this application as ${confirm.status.toLowerCase()}?`}
-          danger={confirm.status === 'REJECTED'}
-          onConfirm={() => handleUpdateStatus(confirm.id, confirm.status)}
+          message={confirm.msg ?? `Are you sure you want to set this application as ${confirm.status?.toLowerCase()}?`}
+          danger={confirm.danger ?? confirm.status === 'REJECTED'}
+          loading={confirmLoading}
+          onConfirm={confirm.onConfirm ?? (() => handleUpdateStatus(confirm.id, confirm.status))}
           onCancel={() => setConfirm(null)}
         />
       )}

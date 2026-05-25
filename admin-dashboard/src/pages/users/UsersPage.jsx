@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Eye, Ban, ShieldCheck, Trash2, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { PageHeader, Table, SearchBar, Modal, ConfirmDialog, AlertBanner } from '../../components/ui'
 import { adminApi } from '../../api/adminApi'
@@ -10,10 +11,11 @@ const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString() : '—'
 
 export default function UsersPage() {
   const { token } = useAuthStore()
+  const [searchParams] = useSearchParams()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [statusFilter, setStatusFilter] = useState('all')
   const [verifyFilter, setVerifyFilter] = useState('all')
   const [selectedUser, setSelectedUser] = useState(null)
@@ -32,7 +34,9 @@ export default function UsersPage() {
     finally { setLoading(false) }
   }, [token])
 
-  useEffect(() => { if (token) load('', 'all', 'all') }, [token, load])
+  useEffect(() => {
+    if (token) load(searchParams.get('search') || '', 'all', 'all')
+  }, [token, load])
 
   const handleSearch = (v) => {
     setSearch(v); clearTimeout(debounceRef.current)

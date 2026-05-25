@@ -107,6 +107,16 @@ public class AdminController {
         requireAdmin(p); adminService.deletePost(id); return ResponseEntity.ok("Post deleted");
     }
 
+    @GetMapping("/posts/{postId}/comments")
+    public ResponseEntity<List<AdminCommentResponse>> getPostComments(@PathVariable Long postId, Principal p) {
+        requireAdmin(p); return ResponseEntity.ok(adminService.getPostComments(postId));
+    }
+
+    @DeleteMapping("/posts/{postId}/comments/{commentId}")
+    public ResponseEntity<String> deleteComment(@PathVariable Long postId, @PathVariable Long commentId, Principal p) {
+        requireAdmin(p); adminService.deleteComment(commentId); return ResponseEntity.ok("Comment deleted");
+    }
+
     // ── Reports ───────────────────────────────────────────────────────────────
 
     @GetMapping("/reports")
@@ -157,6 +167,18 @@ public class AdminController {
         requireAdmin(p); adminService.rejectSession(id); return ResponseEntity.ok("Rejected");
     }
 
+    // ── Badge revocation ──────────────────────────────────────────────────────
+
+    @PatchMapping("/users/{userId}/revoke-badge")
+    public ResponseEntity<String> revokeBadge(
+            @PathVariable Long userId,
+            @RequestParam String type,
+            Principal p) {
+        requireAdmin(p);
+        adminService.revokeBadge(userId, type);
+        return ResponseEntity.ok("Badge revoked");
+    }
+
     // ── Skills ────────────────────────────────────────────────────────────────
 
     @GetMapping("/skills/categories")
@@ -169,7 +191,7 @@ public class AdminController {
             @RequestBody Map<String, String> body, Principal p) {
         requireAdmin(p);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(adminService.createSkillCategory(body.get("name"), body.get("description")));
+                .body(adminService.createSkillCategory(body.get("name"), body.get("description"), body.get("iconKey")));
     }
 
     @DeleteMapping("/skills/categories/{id}")
@@ -204,6 +226,11 @@ public class AdminController {
         return ResponseEntity.ok(adminService.sendBroadcast(req.getTitle(), req.getMessage(), req.getAudience()));
     }
 
+    @DeleteMapping("/notifications/broadcasts/{id}")
+    public ResponseEntity<String> deleteBroadcast(@PathVariable Long id, Principal p) {
+        requireAdmin(p); adminService.deleteBroadcast(id); return ResponseEntity.ok("Deleted");
+    }
+
     // ── Logs ──────────────────────────────────────────────────────────────────
 
     @GetMapping("/logs")
@@ -211,6 +238,22 @@ public class AdminController {
             @RequestParam(defaultValue = "") String search,
             @RequestParam(required = false) String severity) {
         requireAdmin(p); return ResponseEntity.ok(adminService.getLogs(search, severity));
+    }
+
+    // ── Admin Profile ─────────────────────────────────────────────────────────
+
+    @PatchMapping("/profile/name")
+    public ResponseEntity<String> updateName(@RequestBody Map<String, String> body, Principal p) {
+        requireAdmin(p);
+        adminService.updateAdminName(p.getName(), body.get("name"));
+        return ResponseEntity.ok("Name updated");
+    }
+
+    @PatchMapping("/profile/password")
+    public ResponseEntity<String> changePassword(@RequestBody Map<String, String> body, Principal p) {
+        requireAdmin(p);
+        adminService.changeAdminPassword(p.getName(), body.get("currentPassword"), body.get("newPassword"));
+        return ResponseEntity.ok("Password updated");
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────
