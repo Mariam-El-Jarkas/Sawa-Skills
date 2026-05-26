@@ -52,7 +52,12 @@
       "reactCompiler": false
     },
     "extra": {
-      "googleWebClientId": "666569458548-shbjvi6f539o126s58sc8kidr6ts7qsu.apps.googleusercontent.com"
+      "googleWebClientId": "666569458548-shbjvi6f539o126s58sc8kidr6ts7qsu.apps.googleusercontent.com",
+      "apiUrl": "https://sawa-skills-production.up.railway.app",
+      "router": {},
+      "eas": {
+        "projectId": "448501bc-4270-4a19-985d-29be3027c489"
+      }
     }
   }
 }
