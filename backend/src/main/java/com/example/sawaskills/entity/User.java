@@ -32,6 +32,7 @@ public class User {
 
     private String bio;
 
+    @Column(columnDefinition = "TEXT")
     private String profilePicture;
 
     private String role;

@@ -19,10 +19,13 @@ public class VerificationRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(columnDefinition = "TEXT")
     private String idFrontImage;
 
+    @Column(columnDefinition = "TEXT")
     private String idBackImage;
 
+    @Column(columnDefinition = "TEXT")
     private String selfieImage;
 
     private String status; // PENDING, APPROVED, REJECTED, PENDING_PARENT, PENDING_ADMIN

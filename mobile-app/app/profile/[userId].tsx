@@ -212,7 +212,7 @@ export default function ProfileScreen() {
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handlePickPicture = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, quality: 0.2, base64: true });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, quality: 0.15, base64: true, exif: false });
     if (!res.canceled && res.assets?.[0]) {
       const asset = res.assets[0];
       let b64 = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : null;

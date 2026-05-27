@@ -34,7 +34,8 @@ public class SupportRequest {
     @Column(columnDefinition = "TEXT")
     private String usedFeatures;
 
-    private String additionalProofPath; // Path to the uploaded ID photo
+    @Column(columnDefinition = "TEXT")
+    private String additionalProofPath;
     private String ipAddress;
     private String status; // PENDING, RESOLVED
     private LocalDateTime createdAt;

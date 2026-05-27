@@ -20,7 +20,9 @@ public class Post {
 
     private String content;
 
+    @Column(columnDefinition = "TEXT")
     private String imageUrl;
+    @Column(columnDefinition = "TEXT")
     private String documentUrl;
     
     private String pollQuestion;

@@ -199,8 +199,8 @@ public class ProfileService {
             throw new RuntimeException("Image data is not valid base64.");
         }
 
-        if (imageBytes.length > 2_000_000) {
-            throw new RuntimeException("Image too large. Please use an image under 2 MB.");
+        if (imageBytes.length > 5_000_000) {
+            throw new RuntimeException("Invalid image: file is too large. Please use an image under 5 MB.");
         }
 
         User user = findUser(email);
