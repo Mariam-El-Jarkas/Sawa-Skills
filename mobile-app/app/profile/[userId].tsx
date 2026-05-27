@@ -226,10 +226,10 @@ export default function ProfileScreen() {
         }
       }
       setShowPicOptions(false);
-      setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
         setPreviewImage(b64);
         setShowPreviewModal(true);
-      }, 350);
+      });
     }
   };
 

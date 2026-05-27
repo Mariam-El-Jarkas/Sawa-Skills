@@ -205,7 +205,7 @@ public class ProfileService {
 
         User user = findUser(email);
         String ext = imageBase64.startsWith("data:image/png") ? "png" : "jpg";
-        String key = "profile-pictures/user_" + user.getId() + "." + ext;
+        String key = "profile-pictures/user_" + user.getId() + "_" + System.currentTimeMillis() + "." + ext;
         String contentType = "image/" + ext;
 
         String pictureUrl = b2StorageService.upload(imageBytes, key, contentType);
