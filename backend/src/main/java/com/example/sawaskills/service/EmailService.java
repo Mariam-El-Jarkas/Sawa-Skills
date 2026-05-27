@@ -49,8 +49,8 @@ public class EmailService {
 
     public void sendParentActionApprovalEmail(String parentEmail, String childName,
                                                String actionType, String context, String token) {
-        String approveLink = baseUrl + "/api/parent-approval/" + token + "?decision=APPROVE";
-        String declineLink  = baseUrl + "/api/parent-approval/" + token + "?decision=DECLINE";
+        String approveLink = baseUrl + "/api/parent-approval/" + token + "/approve";
+        String declineLink  = baseUrl + "/api/parent-approval/" + token + "/decline";
 
         String actionLabel = switch (actionType) {
             case "SWAP_REQUEST"    -> "request a skill swap";
