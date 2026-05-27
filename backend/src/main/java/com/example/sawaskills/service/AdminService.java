@@ -418,7 +418,7 @@ public class AdminService {
 
     public Map<String, String> getSettings() {
         Map<String, String> defaults = new LinkedHashMap<>();
-        defaults.put("platformName", "Sawa Skills"); defaults.put("supportEmail", "support@sawa.com");
+        defaults.put("platformName", "Sawa Skills"); defaults.put("supportEmail", "support@sawaskills.online");
         defaults.put("maintenanceMode", "false"); defaults.put("allowRegistrations", "true");
         defaults.put("requireEmailVerification", "true"); defaults.put("autoModeration", "false");
         defaults.put("autoSuspendThreshold", "5");

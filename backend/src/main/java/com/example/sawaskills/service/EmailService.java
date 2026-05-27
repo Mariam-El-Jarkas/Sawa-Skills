@@ -15,6 +15,9 @@ public class EmailService {
     @Value("${resend.from.email}")
     private String fromEmail;
 
+    @Value("${app.support.email}")
+    private String supportEmail;
+
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -78,7 +81,7 @@ public class EmailService {
             + "<strong>Issue:</strong> " + request.getIssueDescription(),
             "Please review this request in the admin dashboard and respond within 48 hours."
         );
-        sendEmail("support@sawaskills.com", "Action Required: Account Recovery Request", html);
+        sendEmail(supportEmail, "Action Required: Account Recovery Request", html);
     }
 
     public void sendRecoveryConfirmationEmail(String newEmail) {
@@ -87,7 +90,7 @@ public class EmailService {
             "We've received your account recovery request for <strong>" + newEmail + "</strong>.",
             "Our support team will review your request and get back to you within 1–2 business days. "
             + "You'll receive an email at this address once a decision has been made.",
-            "If you did not submit this request, please contact us immediately at support@sawaskills.com."
+            "If you did not submit this request, please contact us immediately at " + supportEmail + "."
         );
         sendEmail(newEmail, "Recovery request received – SawaSkills", html);
     }
