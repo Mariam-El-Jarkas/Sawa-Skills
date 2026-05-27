@@ -37,9 +37,26 @@ public class AuthService {
     public RegisterResponse register(RegisterRequest request) {
         if (!platformSettings.isAllowRegistrations())
             throw new RuntimeException("New registrations are currently disabled");
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
-        }
+
+        // If email exists but account is unverified, resend OTP and let them verify
+        userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
+            if (existing.getVerified() != null && existing.getVerified()) {
+                throw new RuntimeException("An account with this email already exists");
+            }
+            // Unverified account — resend OTP so they can complete registration
+            String otpCode = OtpGenerator.generateOtp();
+            otpVerificationRepository.invalidateAllByEmail(existing.getEmail());
+            OtpVerification otp = OtpVerification.builder()
+                    .email(existing.getEmail())
+                    .otpHash(passwordEncoder.encode(otpCode))
+                    .expiresAt(LocalDateTime.now().plusMinutes(10))
+                    .createdAt(LocalDateTime.now())
+                    .used(false)
+                    .build();
+            otpVerificationRepository.save(otp);
+            emailService.sendOtpEmail(existing.getEmail(), otpCode);
+            throw new RuntimeException("RESEND_OTP:A verification code has been sent to your email. Please check your inbox.");
+        });
         LocalDate dob = null;
         if (request.getDateOfBirth() != null && !request.getDateOfBirth().isBlank()) {
             dob = LocalDate.parse(request.getDateOfBirth());

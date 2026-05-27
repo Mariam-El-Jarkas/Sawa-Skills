@@ -246,8 +246,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (name: string, email: string, phone: string, password: string, birthDate: string, gender: string): Promise<boolean> => {
-    await apiPost('/api/auth/register', { name, email, phone, password, dateOfBirth: birthDate, gender });
-    return true;
+    try {
+      await apiPost('/api/auth/register', { name, email, phone, password, dateOfBirth: birthDate, gender });
+      return true;
+    } catch (e: any) {
+      // Backend resent OTP to an existing unverified account — treat as success
+      if (e?.message?.startsWith('RESEND_OTP:')) return true;
+      throw e;
+    }
   };
 
   const verifyOtp = async (email: string, otp: string): Promise<boolean> => {

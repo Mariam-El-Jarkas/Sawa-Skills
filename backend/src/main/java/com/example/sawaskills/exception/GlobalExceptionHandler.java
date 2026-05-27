@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         "Wanted skill", "Skill you", "Max ", "Availability must",
         "A verification request", "You must", "Parent email not found",
         "Only verified", "Only volunteers", "Too many",
-        "Email not verified", "Account not verified",
+        "Email not verified", "Account not verified", "RESEND_OTP:",
         "This swap", "This link", "This request",
         "Pending ", "PENDING_PARENT_APPROVAL",
         "Password", "OTP ", "Token "
