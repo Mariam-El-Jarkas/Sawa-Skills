@@ -9,7 +9,9 @@ export function resolveUrl(url: string | null | undefined): string | null {
 
 /** Converts an ISO timestamp to a human-readable relative string ("5m ago", "2h ago") */
 export function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  // Append 'Z' if no timezone info — backend sends UTC LocalDateTime without suffix
+  const utcIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+  const diff = Date.now() - new Date(utcIso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;

@@ -38,7 +38,8 @@ const STORY_GRADIENTS: readonly [string, string][] = [
 
 
 function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const utcIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z';
+  const diff = Date.now() - new Date(utcIso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;

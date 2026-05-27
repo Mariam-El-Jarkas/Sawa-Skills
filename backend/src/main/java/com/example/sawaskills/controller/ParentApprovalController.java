@@ -17,17 +17,22 @@ public class ParentApprovalController {
      * Parent clicks Approve/Decline link from their email.
      * GET /api/parent-approval/{token}?decision=APPROVE|DECLINE
      */
-    @GetMapping("/{token}")
+    @GetMapping(value = "/{token}", produces = "text/html;charset=UTF-8")
     public ResponseEntity<String> handleDecision(
             @PathVariable String token,
-            @RequestParam String decision) {
+            @RequestParam(required = false) String decision) {
 
         String message;
         String borderColor;
         try {
-            message = parentApprovalService.processDecision(token, decision);
-            borderColor = "#7c3aed";
-        } catch (RuntimeException e) {
+            if (decision == null || decision.isBlank()) {
+                message = "Missing decision parameter. Please use the Approve or Decline button from the email.";
+                borderColor = "#ef4444";
+            } else {
+                message = parentApprovalService.processDecision(token, decision);
+                borderColor = "#7c3aed";
+            }
+        } catch (Exception e) {
             message = e.getMessage() != null ? e.getMessage() : "Something went wrong. Please try again.";
             borderColor = "#ef4444";
         }
