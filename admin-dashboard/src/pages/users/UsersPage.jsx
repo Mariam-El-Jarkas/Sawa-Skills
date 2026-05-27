@@ -85,7 +85,8 @@ export default function UsersPage() {
                         user.accountStatus === 'BANNED'
                           ? { icon: RefreshCw, label: 'Unban', danger: false, action: () => setConfirmAction({ label: `Unban ${user.name}?`, onConfirm: () => doAction(() => adminApi.unbanUser(token, user.id)) }) }
                           : { icon: Ban, label: 'Suspend', danger: true, action: () => setConfirmAction({ label: `Suspend ${user.name}?`, danger: true, onConfirm: () => doAction(() => adminApi.suspendUser(token, user.id)) }) },
-                        { icon: Trash2, label: 'Ban User', danger: true, action: () => setConfirmAction({ label: `Ban ${user.name}? This will anonymize their account.`, danger: true, onConfirm: () => doAction(() => adminApi.banUser(token, user.id)) }) },
+                        { icon: Ban, label: 'Ban User', danger: true, action: () => setConfirmAction({ label: `Ban ${user.name}? This will anonymize their account.`, danger: true, onConfirm: () => doAction(() => adminApi.banUser(token, user.id)) }) },
+                        { icon: Trash2, label: 'Delete Account', danger: true, action: () => setConfirmAction({ label: `Permanently delete ${user.name}'s account? This cannot be undone.`, danger: true, onConfirm: () => doAction(() => adminApi.deleteUser(token, user.id)) }) },
                       ].map(({ icon: Icon, label, action, danger }) => (
                         <button key={label} onClick={action} className={clsx('w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors', danger ? 'text-red-600' : 'text-gray-700')}><Icon size={14} />{label}</button>
                       ))}
@@ -108,6 +109,7 @@ export default function UsersPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <button className="btn-danger flex-1 text-sm" onClick={() => { setConfirmAction({ label: `Suspend ${selectedUser.name}?`, danger: true, onConfirm: () => doAction(() => adminApi.suspendUser(token, selectedUser.id)) }); setSelectedUser(null) }}>Suspend</button>
+              <button className="btn-danger flex-1 text-sm" onClick={() => { setConfirmAction({ label: `Permanently delete ${selectedUser.name}'s account? This cannot be undone.`, danger: true, onConfirm: () => doAction(() => adminApi.deleteUser(token, selectedUser.id)) }); setSelectedUser(null) }}>Delete Account</button>
               <button className="btn-secondary flex-1 text-sm" onClick={() => setSelectedUser(null)}>Close</button>
             </div>
           </div>
