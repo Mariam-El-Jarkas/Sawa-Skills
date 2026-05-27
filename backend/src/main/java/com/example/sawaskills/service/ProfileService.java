@@ -10,9 +10,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
@@ -22,10 +19,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProfileService {
     private final jakarta.persistence.EntityManager entityManager;
-
-    // Injected via field — @Value cannot be used with @RequiredArgsConstructor (non-final field)
-    @Value("${app.uploads.dir:uploads}")
-    private String uploadsDir;
 
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
@@ -40,6 +33,7 @@ public class ProfileService {
     private final EmailService emailService;
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
+    private final B2StorageService b2StorageService;
 
     // ── Phase 1: Get full profile ─────────────────────────────────────────────
 
@@ -211,17 +205,10 @@ public class ProfileService {
 
         User user = findUser(email);
         String ext = imageBase64.startsWith("data:image/png") ? "png" : "jpg";
-        String filename = "user_" + user.getId() + "." + ext;
+        String key = "profile-pictures/user_" + user.getId() + "." + ext;
+        String contentType = "image/" + ext;
 
-        try {
-            Path dir = Paths.get(uploadsDir, "profile-pictures");
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(filename), imageBytes);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to save profile picture: " + e.getMessage());
-        }
-
-        String pictureUrl = "/uploads/profile-pictures/" + filename;
+        String pictureUrl = b2StorageService.upload(imageBytes, key, contentType);
         user.setProfilePicture(pictureUrl);
         userRepository.save(user);
         return pictureUrl;
@@ -360,14 +347,10 @@ public class ProfileService {
             String[] parts = base64.split(",", 2);
             if (parts.length < 2) return null;
             byte[] bytes = Base64.getDecoder().decode(parts[1]);
-
-            String filename = "recovery_proof_" + userId + "_" + System.currentTimeMillis() + ".jpg";
-            Path dir = Paths.get(uploadsDir, "recovery-proofs");
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(filename), bytes);
-            return "/uploads/recovery-proofs/" + filename;
+            String key = "recovery-proofs/recovery_proof_" + userId + "_" + System.currentTimeMillis() + ".jpg";
+            return b2StorageService.upload(bytes, key, "image/jpeg");
         } catch (Exception e) {
-            return null; // Silent fail for image saving, don't block the request
+            return null;
         }
     }
 

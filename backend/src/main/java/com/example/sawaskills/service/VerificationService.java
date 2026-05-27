@@ -10,14 +10,9 @@ import com.example.sawaskills.repository.VerificationRequestRepository;
 import com.example.sawaskills.util.MinorUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
@@ -35,9 +30,7 @@ public class VerificationService {
     private final EmailService emailService;
     private final ParentApprovalService parentApprovalService;
     private final NotificationRepository notificationRepository;
-
-    @Value("${app.uploads.dir:uploads}")
-    private String uploadsDir;
+    private final B2StorageService b2StorageService;
 
     @Transactional
     public void submitVerification(String email, VerificationSubmission submission) {
@@ -170,32 +163,19 @@ public class VerificationService {
             log.warn("saveImage called with null/empty base64 for {}", prefix);
             return null;
         }
-        if (base64.startsWith("/")) return base64; // Already a path
+        if (base64.startsWith("http")) return base64; // Already a URL
 
         try {
-            // Clean up base64 string
-            String encoded = base64;
-            if (base64.contains(",")) {
-                encoded = base64.split(",")[1];
-            }
-            
-            // Log a snippet of the base64 for debugging (safely)
-            log.info("Decoding image for {}: length={}, prefix={}", prefix, encoded.length(), encoded.substring(0, Math.min(encoded.length(), 20)));
-            
+            String encoded = base64.contains(",") ? base64.split(",")[1] : base64;
+            log.info("Decoding image for {}: length={}", prefix, encoded.length());
             byte[] bytes = Base64.getDecoder().decode(encoded.trim());
-            String filename = prefix + "_" + UUID.randomUUID() + ".jpg";
-            Path path = Paths.get(uploadsDir, "verifications", filename);
-            Files.createDirectories(path.getParent());
-            Files.write(path, bytes);
-            
-            log.info("Image saved successfully: {}", filename);
-            return "/uploads/verifications/" + filename;
+            String key = "verifications/" + prefix + "_" + UUID.randomUUID() + ".jpg";
+            String url = b2StorageService.upload(bytes, key, "image/jpeg");
+            log.info("Image uploaded to B2: {}", key);
+            return url;
         } catch (IllegalArgumentException e) {
             log.error("Base64 decoding failed for {}: {}", prefix, e.getMessage());
             throw new RuntimeException("Invalid image format. Decoding failed.");
-        } catch (IOException e) {
-            log.error("File system error saving image {}: {}", prefix, e.getMessage());
-            throw new RuntimeException("Server failed to save your image. Please check permissions.");
         } catch (Exception e) {
             log.error("Unexpected error in saveImage for {}: {}", prefix, e.getMessage());
             throw new RuntimeException("An unexpected error occurred while saving images.");

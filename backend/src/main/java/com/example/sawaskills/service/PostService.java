@@ -9,9 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,9 +18,6 @@ import java.util.stream.Collectors;
 public class PostService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PostService.class);
-
-    @Value("${app.uploads.dir:uploads}")
-    private String uploadsDir;
 
     @Value("${ml.service.url:http://localhost:8000}")
     private String mlServiceUrl;
@@ -41,6 +35,7 @@ public class PostService {
     private final NotificationService notificationService;
     private final RestTemplate restTemplate;
     private final PlatformSettingsService platformSettings;
+    private final B2StorageService b2StorageService;
 
     private static final List<String> SPAM_KEYWORDS = List.of(
             "buy now", "click here", "free money", "earn from home", "make money fast",
@@ -572,11 +567,8 @@ public class PostService {
             String[] parts = base64.split(",", 2);
             if (parts.length < 2) return null;
             byte[] bytes = java.util.Base64.getDecoder().decode(parts[1]);
-            String filename = prefix + "_" + System.currentTimeMillis() + ".jpg";
-            Path dir = Paths.get(uploadsDir, subDir);
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(filename), bytes);
-            return "/uploads/" + subDir + "/" + filename;
+            String key = subDir + "/" + prefix + "_" + System.currentTimeMillis() + ".jpg";
+            return b2StorageService.upload(bytes, key, "image/jpeg");
         } catch (Exception e) {
             return null;
         }
@@ -590,21 +582,17 @@ public class PostService {
                 log.warn("saveDocument: no comma separator found in base64 string (length={})", base64.length());
                 return null;
             }
-            // Use MIME decoder: tolerates line breaks (\n every 76 chars) from iOS encoders
             String rawBase64 = parts[1].replaceAll("\\s", "");
             byte[] bytes = java.util.Base64.getMimeDecoder().decode(rawBase64);
 
             String ext = "pdf";
-            if (parts[0].contains("application/pdf")) ext = "pdf";
-            else if (parts[0].contains("word")) ext = "docx";
-            else if (parts[0].contains("text/plain")) ext = "txt";
+            String contentType = "application/pdf";
+            if (parts[0].contains("word")) { ext = "docx"; contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"; }
+            else if (parts[0].contains("text/plain")) { ext = "txt"; contentType = "text/plain"; }
 
-            String filename = prefix + "_" + System.currentTimeMillis() + "." + ext;
-            Path dir = Paths.get(uploadsDir, subDir);
-            Files.createDirectories(dir);
-            Files.write(dir.resolve(filename), bytes);
-            log.info("saveDocument: saved {} bytes to {}", bytes.length, filename);
-            return "/uploads/" + subDir + "/" + filename;
+            String key = subDir + "/" + prefix + "_" + System.currentTimeMillis() + "." + ext;
+            log.info("saveDocument: uploading {} bytes to B2 key={}", bytes.length, key);
+            return b2StorageService.upload(bytes, key, contentType);
         } catch (Exception e) {
             log.error("saveDocument failed (subDir={}, prefix={}): {}", subDir, prefix, e.getMessage(), e);
             return null;
