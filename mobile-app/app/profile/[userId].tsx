@@ -8,6 +8,7 @@ import { useToast } from '../../components/modals/AppToast';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 import {
   CheckCircle2, ShieldCheck, X, Camera, ChevronRight, Clock, Pencil, Mail, Phone, Edit, Edit2, ArrowLeft, Settings, Star, Award, LogOut, Trash2, Users, MessageCircle, UserMinus, MapPin
 } from 'lucide-react-native';
@@ -212,24 +213,24 @@ export default function ProfileScreen() {
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handlePickPicture = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, quality: 0.15, base64: true, exif: false });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] as any, quality: 1, base64: false, exif: false });
     if (!res.canceled && res.assets?.[0]) {
-      const asset = res.assets[0];
-      let b64 = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : null;
-      if (!b64) {
-        try {
-          const raw = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
-          b64 = `data:image/jpeg;base64,${raw}`;
-        } catch {
-          showToast('Failed to read image', 'error');
-          return;
-        }
+      try {
+        const asset = res.assets[0];
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        const b64 = `data:image/jpeg;base64,${manipulated.base64}`;
+        setShowPicOptions(false);
+        InteractionManager.runAfterInteractions(() => {
+          setPreviewImage(b64);
+          setShowPreviewModal(true);
+        });
+      } catch {
+        showToast('Failed to process image', 'error');
       }
-      setShowPicOptions(false);
-      InteractionManager.runAfterInteractions(() => {
-        setPreviewImage(b64);
-        setShowPreviewModal(true);
-      });
     }
   };
 
