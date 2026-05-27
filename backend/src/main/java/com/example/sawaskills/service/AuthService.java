@@ -304,7 +304,13 @@ public class AuthService {
 
         authProvider.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         authProviderRepository.save(authProvider);
-        
+
+        // Password reset via email proves ownership — auto-verify the account
+        if (!user.getVerified()) {
+            user.setVerified(true);
+            userRepository.save(user);
+        }
+
         resetToken.setUsed(true);
         passwordResetTokenRepository.save(resetToken);
     }

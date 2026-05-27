@@ -24,6 +24,7 @@ public class GlobalExceptionHandler {
         "Wanted skill", "Skill you", "Max ", "Availability must",
         "A verification request", "You must", "Parent email not found",
         "Only verified", "Only volunteers", "Too many",
+        "Email not verified", "Account not verified",
         "This swap", "This link", "This request",
         "Pending ", "PENDING_PARENT_APPROVAL",
         "Password", "OTP ", "Token "
@@ -42,8 +43,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<String> handleDataIntegrity(DataIntegrityViolationException ex) {
         String msg = ex.getMostSpecificCause().getMessage();
-        if (msg != null && msg.contains("email")) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already exists");
+        if (msg != null && (msg.contains("email") || msg.contains("users"))) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("An account with this email already exists");
         }
         return ResponseEntity.status(HttpStatus.CONFLICT).body("A duplicate entry already exists");
     }
