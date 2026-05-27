@@ -12,6 +12,9 @@ public class EmailService {
     @Value("${resend.api.key}")
     private String apiKey;
 
+    @Value("${resend.from.email}")
+    private String fromEmail;
+
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -463,7 +466,7 @@ public class EmailService {
     private void sendEmail(String email, String subject, String html) {
         try {
             JSONObject body = new JSONObject();
-            body.put("from", "SawaSkills <onboarding@resend.dev>");
+            body.put("from", "SawaSkills <" + fromEmail + ">");
             body.put("to", email);
             body.put("subject", subject);
             body.put("html", html);
