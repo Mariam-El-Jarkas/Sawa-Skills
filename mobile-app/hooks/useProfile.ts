@@ -88,7 +88,7 @@ export function useProfile(userId?: number | string) {
       // Resolve relative picture URL to absolute so <Image> can load it
       const data: ProfileData = {
         ...raw,
-        profilePicture: raw.profilePicture ? `${toAbsoluteUrl(raw.profilePicture)}?t=${Date.now()}` : null,
+        profilePicture: raw.profilePicture ? toAbsoluteUrl(raw.profilePicture) : null,
         offeredSkills: raw.offeredSkills ?? [],
         wantedSkills: raw.wantedSkills ?? [],
         reviews: raw.reviews ?? [],
@@ -150,7 +150,7 @@ export function useProfile(userId?: number | string) {
     });
     if (!res.ok) throw new Error(await parseError(res, 'Failed to upload picture'));
     const data = await res.json();
-    const absoluteUrl = data.pictureUrl ? `${toAbsoluteUrl(data.pictureUrl)}?t=${Date.now()}` : null;
+    const absoluteUrl = data.pictureUrl ? toAbsoluteUrl(data.pictureUrl) : null;
     setProfile(p => p ? { ...p, profilePicture: absoluteUrl } : p);
     updateUser({ profilePicture: absoluteUrl ?? undefined });
   }, [token, updateUser]);
