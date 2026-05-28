@@ -25,7 +25,7 @@ export default function ChatScreen() {
     conversations, activeConversationId, messages,
     isLoading, isMessagesLoading,
     fetchConversations, openConversation, closeConversation,
-    sendMessage, updatePermissions, startConversation, clearConversation, clearMessages, leaveGroup,
+    sendMessage, updatePermissions, startConversation, injectConversation, clearConversation, clearMessages, leaveGroup,
     updateGroupInfo, closeGroup, hideConversation,
   } = useChat();
 
@@ -111,9 +111,7 @@ export default function ChatScreen() {
 
   const handleOpenConversation = async (chat: any) => {
     if (chat.id) {
-      if (!conversations.some(c => c.id === chat.id)) {
-        await fetchConversations();
-      }
+      injectConversation(chat);
       await openConversation(chat.id);
     } else if (chat.otherUserId) {
       try {

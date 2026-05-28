@@ -17,6 +17,7 @@ interface ChatActions {
   openConversation: (id: number) => Promise<void>;
   closeConversation: () => void;
   startConversation: (otherUserId: number) => Promise<Conversation>;
+  injectConversation: (conv: Conversation) => void;
   sendMessage: (content: string) => Promise<void>;
   markRead: (conversationId: number) => Promise<void>;
   updatePermissions: (conversationId: number, everyoneCanMessage: boolean) => Promise<void>;
@@ -135,6 +136,10 @@ export function useChat(): ChatState & ChatActions {
   }, []);
 
   // ── Start or find a conversation ──────────────────────────────────────────
+  const injectConversation = useCallback((conv: Conversation) => {
+    setConversations(prev => prev.some(c => c.id === conv.id) ? prev : [conv, ...prev]);
+  }, []);
+
   const startConversation = useCallback(async (otherUserId: number): Promise<Conversation> => {
     if (!token) throw new Error('Not logged in');
     const conv = await chatService.startConversation(otherUserId, token);
@@ -255,7 +260,7 @@ export function useChat(): ChatState & ChatActions {
     conversations, activeConversationId, messages,
     isLoading, isMessagesLoading, error,
     fetchConversations, openConversation, closeConversation,
-    startConversation, sendMessage, markRead, updatePermissions, clearConversation, clearMessages,
+    startConversation, injectConversation, sendMessage, markRead, updatePermissions, clearConversation, clearMessages,
     leaveGroup, updateGroupInfo, closeGroup, hideConversation,
   };
 }
