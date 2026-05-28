@@ -193,36 +193,6 @@ export default function VolunteerScreen() {
         </LinearGradient>
 
         <View style={s.body}>
-          {/* My Sessions */}
-          {isLoggedIn && (isVolunteer || user?.isAgeVerified) && (
-            <View style={s.section}>
-              <View style={s.sectionHdr}>
-                <Text style={s.sectionTitle}>My Sessions</Text>
-                <TouchableOpacity style={s.createSessionBtn} onPress={() => setShowSessionForm(true)}>
-                  <Plus size={14} color="#fff" />
-                  <Text style={s.createSessionTxt}>Create</Text>
-                </TouchableOpacity>
-              </View>
-              {mySessions.length === 0 ? (
-                <Text style={{ color: C.gray400, fontSize: 13 }}>No sessions yet. Create one!</Text>
-              ) : mySessions.map(s2 => (
-                <View key={s2.id} style={s.mySessionCard}>
-                  <View style={s.mySessionInfo}>
-                    <Text style={s.mySessionTitle}>{s2.title}</Text>
-                    <View style={s.mySessionMeta}>
-                      <Text style={{ fontSize: 12, color: C.gray500 }}>{s2.date}</Text>
-                    </View>
-                  </View>
-                  <View style={[s.statusBadge, { backgroundColor: s2.status === 'upcoming' ? C.violet100 : C.gray100 }]}>
-                    <Text style={[s.statusTxt, { color: s2.status === 'upcoming' ? C.violet600 : C.gray500 }]}>
-                      {s2.status}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
           {/* Opportunities */}
           {opportunities.length > 0 && (
             <View style={s.section}>
