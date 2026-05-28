@@ -13,6 +13,17 @@ import type { ThemeColors } from '../../components/theme';
 import { VerificationGate } from '../../components/VerificationGate';
 import { volunteerService, VolunteerSession } from '../../services/volunteerService';
 
+function parseTime12h(timeStr: string): string {
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return '00:00:00';
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const p = match[3].toUpperCase();
+  if (p === 'PM' && h !== 12) h += 12;
+  if (p === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${m}:00`;
+}
+
 export default function VolunteerScreen() {
   const { C, G } = useTheme();
   const insets = useSafeAreaInsets();
@@ -114,7 +125,16 @@ export default function VolunteerScreen() {
       return;
     }
     try {
-      const created = await volunteerService.createSession(sessionData, token);
+      const isoDateTime = `${sessionData.date}T${parseTime12h(sessionData.time)}`;
+      const locationType: 'REMOTE' | 'IN_PERSON' = sessionData.location.trim() ? 'IN_PERSON' : 'REMOTE';
+      const created = await volunteerService.createSession({
+        name: sessionData.name,
+        description: sessionData.description,
+        skills: sessionData.skills,
+        isoDateTime,
+        locationType,
+        location: sessionData.location || undefined,
+      }, token);
       setMySessions(prev => [created, ...prev]);
       setOpportunities(prev => [created, ...prev]);
       showToast('Session Created!', 'success');
@@ -173,6 +193,36 @@ export default function VolunteerScreen() {
         </LinearGradient>
 
         <View style={s.body}>
+          {/* My Sessions */}
+          {isLoggedIn && (isVolunteer || user?.isAgeVerified) && (
+            <View style={s.section}>
+              <View style={s.sectionHdr}>
+                <Text style={s.sectionTitle}>My Sessions</Text>
+                <TouchableOpacity style={s.createSessionBtn} onPress={() => setShowSessionForm(true)}>
+                  <Plus size={14} color="#fff" />
+                  <Text style={s.createSessionTxt}>Create</Text>
+                </TouchableOpacity>
+              </View>
+              {mySessions.length === 0 ? (
+                <Text style={{ color: C.gray400, fontSize: 13 }}>No sessions yet. Create one!</Text>
+              ) : mySessions.map(s2 => (
+                <View key={s2.id} style={s.mySessionCard}>
+                  <View style={s.mySessionInfo}>
+                    <Text style={s.mySessionTitle}>{s2.title}</Text>
+                    <View style={s.mySessionMeta}>
+                      <Text style={{ fontSize: 12, color: C.gray500 }}>{s2.date}</Text>
+                    </View>
+                  </View>
+                  <View style={[s.statusBadge, { backgroundColor: s2.status === 'upcoming' ? C.violet100 : C.gray100 }]}>
+                    <Text style={[s.statusTxt, { color: s2.status === 'upcoming' ? C.violet600 : C.gray500 }]}>
+                      {s2.status}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Opportunities */}
           {opportunities.length > 0 && (
             <View style={s.section}>

@@ -19,15 +19,19 @@ public class GlobalExceptionHandler {
     // Messages that are intentional business-rule errors → 400 Bad Request
     private static final Set<String> BUSINESS_ERROR_PREFIXES = Set.of(
         "User not found", "Swap not found", "Session not found", "Listing not found",
+        "Conversation not found", "Group chat not found",
         "You cannot", "You already", "You have already", "You are not", "Only ",
         "Email already", "A duplicate", "Invalid ", "Required ", "Offered skill",
         "Wanted skill", "Skill you", "Max ", "Availability must",
         "A verification request", "You must", "Parent email not found",
         "Only verified", "Only volunteers", "Too many",
         "Email not verified", "Account not verified", "RESEND_OTP:",
-        "This swap", "This link", "This request",
+        "This swap", "This link", "This request", "This group",
         "Pending ", "PENDING_PARENT_APPROVAL",
-        "Password", "OTP ", "Token "
+        "Password", "OTP ", "Token ",
+        "Session date", "Session name", "Description must", "Address is required",
+        "Address must", "Please provide", "Failed to upload",
+        "everyoneCanMessage"
     );
 
     // Handles @Valid failures — returns the first readable message

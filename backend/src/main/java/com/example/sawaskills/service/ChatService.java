@@ -49,7 +49,8 @@ public class ChatService {
                     }
                 })
                 .map(c -> toConversationResponse(c, user))
-                .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp, Comparator.reverseOrder()))
+                .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
     }
 
@@ -73,18 +74,13 @@ public class ChatService {
         User other = userRepository.findById(otherUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Conversation conversation = conversationRepository
-                .findBetweenUsers(user.getId(), otherUserId)
-                .orElseGet(() -> {
-                    Set<User> participants = new HashSet<>();
-                    participants.add(user);
-                    participants.add(other);
-                    Conversation c = Conversation.builder()
-                            .createdAt(LocalDateTime.now())
-                            .participants(participants)
-                            .build();
-                    return conversationRepository.save(c);
-                });
+        List<Conversation> existing1on1 = conversationRepository.findBetweenUsers(user.getId(), otherUserId);
+        Conversation conversation = existing1on1.isEmpty()
+                ? conversationRepository.save(Conversation.builder()
+                        .createdAt(LocalDateTime.now())
+                        .participants(new HashSet<>(Set.of(user, other)))
+                        .build())
+                : existing1on1.get(0);
 
         return toConversationResponse(conversation, user);
     }
