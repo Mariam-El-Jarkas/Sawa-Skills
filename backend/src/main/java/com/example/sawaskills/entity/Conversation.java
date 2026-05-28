@@ -29,12 +29,13 @@ public class Conversation {
     private User admin;
 
     @Builder.Default
+    @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean everyoneCanMessage = true;
 
     private String profilePicture;
 
     @Builder.Default
-    @Column(name = "is_closed")
+    @Column(name = "is_closed", nullable = false, columnDefinition = "boolean default false")
     private boolean closed = false;
 
     @ManyToMany
