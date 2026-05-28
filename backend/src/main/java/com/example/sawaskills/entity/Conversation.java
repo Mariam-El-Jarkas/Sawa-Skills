@@ -32,6 +32,7 @@ public class Conversation {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean everyoneCanMessage = true;
 
+    @Column(columnDefinition = "TEXT")
     private String profilePicture;
 
     @Builder.Default
