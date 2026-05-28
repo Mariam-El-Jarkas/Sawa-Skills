@@ -21,4 +21,12 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @Modifying
     @Query(value = "INSERT INTO conversation_hidden_by (conversation_id, user_id) VALUES (:convId, :userId) ON CONFLICT DO NOTHING", nativeQuery = true)
     void insertHiddenBy(@Param("convId") Long conversationId, @Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE Conversation c SET c.profilePicture = :url WHERE c.id = :id")
+    void updateProfilePicture(@Param("id") Long id, @Param("url") String url);
+
+    @Modifying
+    @Query("UPDATE Conversation c SET c.name = :name WHERE c.id = :id")
+    void updateName(@Param("id") Long id, @Param("name") String name);
 }

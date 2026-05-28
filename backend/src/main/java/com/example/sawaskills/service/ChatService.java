@@ -258,7 +258,9 @@ public class ChatService {
         if (!isAdmin) throw new RuntimeException("Only the administrator can update group info");
 
         if (request.getName() != null && !request.getName().isBlank()) {
-            conversation.setName(request.getName().trim());
+            String newName = request.getName().trim();
+            conversation.setName(newName);
+            conversationRepository.updateName(conversationId, newName);
         }
 
         if (request.getPictureBase64() != null && !request.getPictureBase64().isBlank()) {
@@ -267,12 +269,12 @@ public class ChatService {
                 String key = "group-pictures/conv-" + conversationId + "-" + System.currentTimeMillis() + ".jpg";
                 String url = b2StorageService.upload(imageBytes, key, "image/jpeg");
                 conversation.setProfilePicture(url);
+                conversationRepository.updateProfilePicture(conversationId, url);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to upload group picture");
             }
         }
 
-        conversationRepository.save(conversation);
         return toConversationResponse(conversation, user);
     }
 
@@ -288,6 +290,11 @@ public class ChatService {
 
         conversation.setClosed(true);
         conversationRepository.save(conversation);
+
+        // Hide from all participants' feeds so it disappears from everyone's chat list
+        conversation.getParticipants().forEach(p ->
+                conversationRepository.insertHiddenBy(conversationId, p.getId())
+        );
 
         // Notify all non-admin participants
         conversation.getParticipants().stream()

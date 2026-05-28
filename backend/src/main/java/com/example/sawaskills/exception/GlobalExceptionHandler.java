@@ -74,7 +74,7 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("You have already requested this swap");
         }
         log.warn("Unhandled DataIntegrityViolationException: {}", msg);
-        return ResponseEntity.status(HttpStatus.CONFLICT).body("This action could not be completed due to a data conflict.");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("DataConflict: " + msg);
     }
 
     @ExceptionHandler(RateLimitException.class)
