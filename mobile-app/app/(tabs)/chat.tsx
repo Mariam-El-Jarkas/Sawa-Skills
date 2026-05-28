@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform, RefreshControl, Modal, Image, Alert } from 'react-native';
-import { ArrowLeft, Search, Send, Info, Users, Shield, ShieldCheck, Lock, Unlock, X, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Search, Send, Info, Users, Shield, ShieldCheck, Lock, X, Trash2, Camera, Edit2, AlertTriangle } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useChat } from '../../hooks/useChat';
@@ -11,6 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../components/modals/AppToast';
 import { chatService } from '../../services/chatService';
 import { resolveUrl } from '../../utils/helpers';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function ChatScreen() {
   const { C } = useTheme();
@@ -25,6 +26,7 @@ export default function ChatScreen() {
     isLoading, isMessagesLoading,
     fetchConversations, openConversation, closeConversation,
     sendMessage, updatePermissions, startConversation, clearConversation, clearMessages, leaveGroup,
+    updateGroupInfo, closeGroup, hideConversation,
   } = useChat();
 
   const [message, setMessage] = useState('');
@@ -34,6 +36,11 @@ export default function ChatScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [confirmDeleteConvId, setConfirmDeleteConvId] = useState<number | null>(null);
+  const [confirmHideConvId, setConfirmHideConvId] = useState<number | null>(null);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [isSavingGroupInfo, setIsSavingGroupInfo] = useState(false);
+  const [isClosingGroup, setIsClosingGroup] = useState(false);
+  const [showCloseGroupConfirm, setShowCloseGroupConfirm] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -44,7 +51,9 @@ export default function ChatScreen() {
     if (isLoggedIn) {
       if (openId) {
         const id = Number(openId);
-        if (id && id !== activeConversationId) openConversation(id);
+        if (id && id !== activeConversationId) {
+          fetchConversations().then(() => openConversation(id));
+        }
       } else if (openUserId) {
         const uid = Number(openUserId);
         if (uid) {
@@ -116,7 +125,8 @@ export default function ChatScreen() {
   const activeConv = conversations.find(c => c.id === activeConversationId);
   const { user: currentUser } = useAuth();
   const isAdmin = activeConv?.isGroup && activeConv.adminId === currentUser?.id;
-  const canSendMessage = !activeConv?.isGroup || activeConv?.everyoneCanMessage || isAdmin;
+  const isClosed = !!activeConv?.isClosed;
+  const canSendMessage = !isClosed && (!activeConv?.isGroup || activeConv?.everyoneCanMessage || isAdmin);
 
   const toggleEveryoneCanMessage = async () => {
     if (!activeConv || !isAdmin) return;
@@ -147,6 +157,75 @@ export default function ChatScreen() {
       showToast('You left the group', 'success');
     } catch (e: any) {
       showToast(e.message ?? 'Failed to leave group', 'error');
+    }
+  };
+
+  const handlePickGroupPicture = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showToast('Photo library access is required to set a group picture', 'error');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.6,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const base64 = result.assets?.[0]?.base64;
+    if (!base64) {
+      showToast('Could not read image data. Please try a different image.', 'error');
+      return;
+    }
+    if (!activeConv) return;
+    setIsSavingGroupInfo(true);
+    try {
+      await updateGroupInfo(activeConv.id, null, base64);
+      showToast('Group picture updated', 'success');
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to update picture', 'error');
+    } finally {
+      setIsSavingGroupInfo(false);
+    }
+  };
+
+  const handleSaveGroupName = async () => {
+    if (!activeConv || !editGroupName.trim()) return;
+    setIsSavingGroupInfo(true);
+    try {
+      await updateGroupInfo(activeConv.id, editGroupName.trim(), null);
+      showToast('Group name updated', 'success');
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to update name', 'error');
+    } finally {
+      setIsSavingGroupInfo(false);
+    }
+  };
+
+  const handleCloseGroup = async () => {
+    if (!activeConv) return;
+    setIsClosingGroup(true);
+    try {
+      await closeGroup(activeConv.id);
+      setShowCloseGroupConfirm(false);
+      setShowInfo(false);
+      showToast('Group has been closed', 'success');
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to close group', 'error');
+    } finally {
+      setIsClosingGroup(false);
+    }
+  };
+
+  const handleHideConversation = async (convId: number) => {
+    try {
+      await hideConversation(convId);
+      setConfirmHideConvId(null);
+      showToast('Removed from feed', 'success');
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to remove', 'error');
     }
   };
 
@@ -270,6 +349,27 @@ export default function ChatScreen() {
     confirmCancelTxt: { fontSize: 14, fontWeight: '600', color: C.gray700 },
     confirmDeleteBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: C.violet600, borderRadius: 16 },
     confirmDeleteTxt: { fontSize: 14, fontWeight: '700', color: C.white },
+    confirmDangerBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: '#DC2626', borderRadius: 16 },
+    // Group picture picker
+    groupAvatarWrap: { position: 'relative', marginBottom: 4 },
+    groupPictureBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: C.violet600, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.white },
+    groupAvatarImg: { width: 90, height: 90, borderRadius: 45 },
+    // Group name editing
+    editNameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%', paddingHorizontal: 24 },
+    editNameInput: { flex: 1, borderWidth: 1, borderColor: C.violet200, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, color: C.gray900, backgroundColor: C.white },
+    editNameSaveBtn: { backgroundColor: C.violet600, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+    editNameSaveTxt: { color: C.white, fontWeight: '700', fontSize: 14 },
+    // Close group section
+    closeGroupSection: { padding: 24, borderTopWidth: 1, borderTopColor: C.gray100 },
+    closeGroupBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, backgroundColor: 'rgba(220,38,38,0.06)', borderWidth: 1, borderColor: 'rgba(220,38,38,0.2)' },
+    closeGroupIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(220,38,38,0.1)' },
+    closeGroupTxt: { fontSize: 15, fontWeight: '600', color: '#DC2626', flex: 1 },
+    closeGroupSub: { fontSize: 12, color: '#DC2626', opacity: 0.7 },
+    // Closed group banner
+    closedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#FEF3C7', borderBottomWidth: 1, borderBottomColor: '#F59E0B' },
+    closedBannerTxt: { fontSize: 13, color: '#92400E', fontWeight: '600', flex: 1 },
+    closedInput: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.gray100, borderRadius: 24, paddingVertical: 10, height: 44 },
+    closedInputTxt: { color: C.gray500, fontSize: 13, fontWeight: '600' },
   }), [C]);
 
   const confirmModal = (
@@ -320,11 +420,13 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={s.chatHdrInfo}
-              onPress={() => activeConv?.isGroup ? setShowInfo(true) : activeConv?.otherUserId && router.push(`/profile/${activeConv.otherUserId}`)}
+              onPress={() => activeConv?.isGroup ? (setEditGroupName(activeConv?.otherUserName ?? ''), setShowInfo(true)) : activeConv?.otherUserId && router.push(`/profile/${activeConv.otherUserId}`)}
               activeOpacity={0.7}
             >
               <View style={s.chatHdrAvatar}>
-                {activeConv?.otherUserPicture ? (
+                {(activeConv?.isGroup && activeConv?.profilePicture) ? (
+                  <Image source={{ uri: resolveUrl(activeConv.profilePicture)! }} style={{ width: '100%', height: '100%', borderRadius: 19 }} resizeMode="cover" />
+                ) : activeConv?.otherUserPicture ? (
                   <Image source={{ uri: resolveUrl(activeConv.otherUserPicture)! }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 ) : (
                   <Text style={s.chatHdrAvatarTxt}>{activeConv?.otherUserInitials ?? '??'}</Text>
@@ -333,14 +435,25 @@ export default function ChatScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.chatHdrName} numberOfLines={1}>{activeConv?.otherUserName ?? 'Chat'}</Text>
                 {activeConv?.isGroup && (
-                  <Text style={s.chatHdrSub}>{activeConv.participantsCount || 0} participants • Tap for info</Text>
+                  <Text style={s.chatHdrSub}>
+                    {isClosed ? 'Group closed' : `${activeConv.participantsCount || 0} participants • Tap for info`}
+                  </Text>
                 )}
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={s.infoBtn} onPress={() => setShowInfo(true)}>
+            <TouchableOpacity style={s.infoBtn} onPress={() => { setEditGroupName(activeConv?.otherUserName ?? ''); setShowInfo(true); }}>
               <Info size={22} color={C.violet600} />
             </TouchableOpacity>
           </View>
+
+          {isClosed && (
+            <View style={s.closedBanner}>
+              <AlertTriangle size={16} color="#92400E" />
+              <Text style={s.closedBannerTxt}>
+                {isAdmin ? 'You closed this group. Members can still view message history.' : 'This group is no longer active. Message history is preserved for reference.'}
+              </Text>
+            </View>
+          )}
 
           {isMessagesLoading ? (
             <ActivityIndicator size="large" color={C.violet600} style={{ flex: 1 }} />
@@ -397,7 +510,9 @@ export default function ChatScreen() {
           )}
 
           <View style={[s.inputBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-            {!canSendMessage ? (
+            {isClosed ? (
+              <View style={s.closedInput}><AlertTriangle size={16} color={C.gray400} /><Text style={s.closedInputTxt}>This group has been closed</Text></View>
+            ) : !canSendMessage ? (
               <View style={s.lockedInput}><Lock size={16} color={C.gray400} /><Text style={s.lockedInputTxt}>Only admin can send messages</Text></View>
             ) : (
               <>
@@ -412,21 +527,84 @@ export default function ChatScreen() {
               <View style={s.modalContent}>
                 <View style={s.modalHdr}><View style={s.modalHandle} /><TouchableOpacity style={s.modalClose} onPress={() => setShowInfo(false)}><X size={24} color={C.gray400} /></TouchableOpacity></View>
                 <ScrollView showsVerticalScrollIndicator={false}>
+                  {/* Group avatar — admin can tap to change */}
                   <View style={s.groupInfoTop}>
-                    <View style={s.groupAvatarLarge}><Text style={s.groupAvatarTxtLarge}>{activeConv?.otherUserInitials}</Text></View>
-                    <Text style={s.groupNameLarge}>{activeConv?.otherUserName}</Text>
-                    <View style={s.groupBadgeLarge}>{activeConv?.isGroup ? <Users size={14} color={C.violet600} /> : <Lock size={14} color={C.violet600} />}<Text style={s.groupBadgeTxtLarge}>{activeConv?.isGroup ? `${activeConv?.participantsCount} Members` : 'Private Chat'}</Text></View>
+                    <TouchableOpacity
+                      style={s.groupAvatarWrap}
+                      onPress={isAdmin ? handlePickGroupPicture : undefined}
+                      activeOpacity={isAdmin ? 0.7 : 1}
+                    >
+                      <View style={s.groupAvatarLarge}>
+                        {activeConv?.profilePicture ? (
+                          <Image source={{ uri: resolveUrl(activeConv.profilePicture)! }} style={s.groupAvatarImg} resizeMode="cover" />
+                        ) : (
+                          <Text style={s.groupAvatarTxtLarge}>{activeConv?.otherUserInitials}</Text>
+                        )}
+                      </View>
+                      {isAdmin && (
+                        <View style={s.groupPictureBadge}>
+                          {isSavingGroupInfo ? <ActivityIndicator size="small" color={C.white} /> : <Camera size={14} color={C.white} />}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Editable group name for admin */}
+                    {isAdmin ? (
+                      <View style={s.editNameRow}>
+                        <TextInput
+                          style={s.editNameInput}
+                          value={editGroupName}
+                          onChangeText={setEditGroupName}
+                          placeholder={activeConv?.otherUserName ?? 'Group name'}
+                          placeholderTextColor={C.gray400}
+                          onFocus={() => { if (!editGroupName) setEditGroupName(activeConv?.otherUserName ?? ''); }}
+                        />
+                        <TouchableOpacity
+                          style={[s.editNameSaveBtn, (isSavingGroupInfo || !editGroupName.trim()) && { opacity: 0.5 }]}
+                          onPress={handleSaveGroupName}
+                          disabled={isSavingGroupInfo || !editGroupName.trim()}
+                        >
+                          <Text style={s.editNameSaveTxt}>Save</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Text style={s.groupNameLarge}>{activeConv?.otherUserName}</Text>
+                    )}
+
+                    <View style={s.groupBadgeLarge}>
+                      {activeConv?.isGroup ? <Users size={14} color={C.violet600} /> : <Lock size={14} color={C.violet600} />}
+                      <Text style={s.groupBadgeTxtLarge}>{activeConv?.isGroup ? `${activeConv?.participantsCount} Members` : 'Private Chat'}</Text>
+                    </View>
                   </View>
+
+                  {/* Actions */}
                   <View style={s.section}>
-                    <TouchableOpacity style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100, marginBottom: 12 }]} onPress={handleClearMessages}>
-                      <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
-                      <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Clear History</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[s.infoAction, { backgroundColor: 'rgba(124, 58, 237, 0.05)', borderColor: C.violet100, marginBottom: 12 }]} onPress={() => { if (activeConv) { setConfirmDeleteConvId(activeConv.id); setShowInfo(false); } }}>
-                      <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
-                      <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Delete Chat</Text>
-                    </TouchableOpacity>
-                    {activeConv?.isGroup && !isAdmin && (
+                    {!isClosed && (
+                      <TouchableOpacity style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100, marginBottom: 12 }]} onPress={handleClearMessages}>
+                        <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
+                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Clear History</Text>
+                      </TouchableOpacity>
+                    )}
+                    {/* Regular members: "Remove from Feed" for groups; "Delete Chat" for 1:1 */}
+                    {!isAdmin && (
+                      <TouchableOpacity
+                        style={[s.infoAction, { backgroundColor: 'rgba(124, 58, 237, 0.05)', borderColor: C.violet100, marginBottom: 12 }]}
+                        onPress={() => {
+                          if (!activeConv) return;
+                          if (activeConv.isGroup) {
+                            setConfirmHideConvId(activeConv.id);
+                            setShowInfo(false);
+                          } else {
+                            setConfirmDeleteConvId(activeConv.id);
+                            setShowInfo(false);
+                          }
+                        }}
+                      >
+                        <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
+                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>{activeConv?.isGroup ? 'Remove from Feed' : 'Delete Chat'}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {activeConv?.isGroup && !isAdmin && !isClosed && (
                       <TouchableOpacity
                         style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100 }]}
                         onPress={() => Alert.alert(
@@ -443,15 +621,31 @@ export default function ChatScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+
+                  {/* Admin controls */}
                   {isAdmin && (
                     <View style={s.adminSection}>
                       <Text style={s.sectionTitle}>Administrator Controls</Text>
-                      <View style={s.permissionRow}>
-                        <View style={s.permissionInfo}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Shield size={16} color={C.violet600} /><Text style={s.permissionLabel}>Open Messaging</Text></View><Text style={s.permissionSub}>Allow all members to send messages</Text></View>
-                        <TouchableOpacity onPress={toggleEveryoneCanMessage} style={[s.toggle, activeConv?.everyoneCanMessage ? s.toggleOn : s.toggleOff]}><View style={[s.toggleKnob, activeConv?.everyoneCanMessage ? s.toggleKnobOn : s.toggleKnobOff]} /></TouchableOpacity>
-                      </View>
+                      {!isClosed && (
+                        <View style={s.permissionRow}>
+                          <View style={s.permissionInfo}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Shield size={16} color={C.violet600} /><Text style={s.permissionLabel}>Open Messaging</Text></View><Text style={s.permissionSub}>Allow all members to send messages</Text></View>
+                          <TouchableOpacity onPress={toggleEveryoneCanMessage} style={[s.toggle, activeConv?.everyoneCanMessage ? s.toggleOn : s.toggleOff]}><View style={[s.toggleKnob, activeConv?.everyoneCanMessage ? s.toggleKnobOn : s.toggleKnobOff]} /></TouchableOpacity>
+                        </View>
+                      )}
+                      {/* Close Group — shown prominently inside admin section */}
+                      {!isClosed && (
+                        <TouchableOpacity style={[s.closeGroupBtn, { marginTop: 16 }]} onPress={() => setShowCloseGroupConfirm(true)}>
+                          <View style={s.closeGroupIcon}><AlertTriangle size={18} color="#DC2626" /></View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.closeGroupTxt}>Close Group</Text>
+                            <Text style={s.closeGroupSub}>Members can still view chat history</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
+
+                  {/* Members list */}
                   {activeConv?.isGroup && (
                     <View style={s.section}>
                       <Text style={s.sectionTitle}>Group Members ({activeConv?.participants?.length || 0})</Text>
@@ -473,8 +667,49 @@ export default function ChatScreen() {
               </View>
             </View>
           </Modal>
+
+          {/* Close Group confirmation */}
+          <Modal visible={showCloseGroupConfirm} transparent animationType="fade">
+            <View style={s.modalOverlayCenter}>
+              <View style={s.confirmModal}>
+                <View style={[s.confirmIconBg, { backgroundColor: 'rgba(220,38,38,0.1)' }]}><AlertTriangle size={24} color="#DC2626" /></View>
+                <Text style={s.confirmTitle}>Close Group?</Text>
+                <Text style={s.confirmSubtitle}>This permanently closes the group. No new messages can be sent. Members will still be able to view the chat history.</Text>
+                <View style={s.confirmBtns}>
+                  <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setShowCloseGroupConfirm(false)}>
+                    <Text style={s.confirmCancelTxt}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.confirmDangerBtn} onPress={handleCloseGroup} disabled={isClosingGroup}>
+                    {isClosingGroup ? <ActivityIndicator color="#fff" /> : <Text style={[s.confirmDeleteTxt, { color: '#fff' }]}>Close Group</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </KeyboardAvoidingView>
         {confirmModal}
+
+        {/* Remove from Feed confirmation (for regular users on group chats) */}
+        <Modal visible={!!confirmHideConvId} transparent animationType="fade">
+          <View style={s.modalOverlayCenter}>
+            <View style={s.confirmModal}>
+              <View style={s.confirmIconBg}><Trash2 size={24} color={C.violet600} /></View>
+              <Text style={s.confirmTitle}>Remove from Feed?</Text>
+              <Text style={s.confirmSubtitle}>This removes the chat from your messages list. You can still find it through the session page. Other members won't be affected.</Text>
+              <View style={s.confirmBtns}>
+                <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setConfirmHideConvId(null)}>
+                  <Text style={s.confirmCancelTxt}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.confirmDeleteBtn}
+                  onPress={() => confirmHideConvId && handleHideConversation(confirmHideConvId)}
+                >
+                  <Text style={s.confirmDeleteTxt}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </>
     );
   }
@@ -492,10 +727,37 @@ export default function ChatScreen() {
           ) : (
             <View style={s.chatList}>
               {displayConversations.map(chat => (
-                <TouchableOpacity key={chat.id || `user-${chat.otherUserId}`} style={s.chatItem} onPress={() => handleOpenConversation(chat)} onLongPress={() => chat.id && setConfirmDeleteConvId(chat.id)}>
-                  <View style={s.chatItemLeft}><View style={s.avatarWrap}><View style={s.avatar}>{chat.otherUserPicture ? <Image source={{ uri: resolveUrl(chat.otherUserPicture)! }} style={{ width: '100%', height: '100%', borderRadius: 22 }} resizeMode="cover" /> : <Text style={s.avatarTxt}>{chat.otherUserInitials}</Text>}</View></View>
-                    <View style={s.chatItemInfo}><View style={s.chatItemTop}><Text style={s.chatName}>{chat.otherUserName}</Text><Text style={s.chatTime}>{chat.lastMessageTime ?? ''}</Text></View>
-                      {chat.isGroup && <View style={s.groupBadge}><Text style={s.groupBadgeTxt}>Group</Text></View>}
+                <TouchableOpacity
+                  key={chat.id || `user-${chat.otherUserId}`}
+                  style={[s.chatItem, chat.isClosed && { opacity: 0.7 }]}
+                  onPress={() => handleOpenConversation(chat)}
+                  onLongPress={() => {
+                    if (!chat.id) return;
+                    if (chat.isGroup) setConfirmHideConvId(chat.id);
+                    else setConfirmDeleteConvId(chat.id);
+                  }}
+                >
+                  <View style={s.chatItemLeft}>
+                    <View style={s.avatarWrap}>
+                      <View style={s.avatar}>
+                        {(chat.isGroup && chat.profilePicture) ? (
+                          <Image source={{ uri: resolveUrl(chat.profilePicture)! }} style={{ width: '100%', height: '100%', borderRadius: 24 }} resizeMode="cover" />
+                        ) : chat.otherUserPicture ? (
+                          <Image source={{ uri: resolveUrl(chat.otherUserPicture)! }} style={{ width: '100%', height: '100%', borderRadius: 22 }} resizeMode="cover" />
+                        ) : (
+                          <Text style={s.avatarTxt}>{chat.otherUserInitials}</Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={s.chatItemInfo}>
+                      <View style={s.chatItemTop}>
+                        <Text style={s.chatName}>{chat.otherUserName}</Text>
+                        <Text style={s.chatTime}>{chat.lastMessageTime ?? ''}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        {chat.isGroup && <View style={s.groupBadge}><Text style={s.groupBadgeTxt}>Group</Text></View>}
+                        {chat.isClosed && <View style={[s.groupBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[s.groupBadgeTxt, { color: '#92400E' }]}>Closed</Text></View>}
+                      </View>
                       <Text style={s.chatLastMsg} numberOfLines={1}>{chat.lastMessage ?? (chat.isGroup ? `${chat.participantsCount} members` : 'No messages yet')}</Text>
                     </View>
                   </View>
@@ -507,6 +769,26 @@ export default function ChatScreen() {
         </View>
       </ScrollView>
       {confirmModal}
+      <Modal visible={!!confirmHideConvId} transparent animationType="fade">
+        <View style={s.modalOverlayCenter}>
+          <View style={s.confirmModal}>
+            <View style={s.confirmIconBg}><Trash2 size={24} color={C.violet600} /></View>
+            <Text style={s.confirmTitle}>Remove from Feed?</Text>
+            <Text style={s.confirmSubtitle}>This removes the chat from your messages list. You can still find it through the session page. Other members won't be affected.</Text>
+            <View style={s.confirmBtns}>
+              <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setConfirmHideConvId(null)}>
+                <Text style={s.confirmCancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.confirmDeleteBtn}
+                onPress={() => confirmHideConvId && handleHideConversation(confirmHideConvId)}
+              >
+                <Text style={s.confirmDeleteTxt}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {isLoggedIn && !chatIsVerified && <VerificationGate feature="Chat" />}
       {!isLoggedIn && <GuestGate feature="Chat" />}
     </View>
