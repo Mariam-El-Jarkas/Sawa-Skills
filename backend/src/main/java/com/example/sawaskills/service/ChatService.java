@@ -155,13 +155,18 @@ public class ChatService {
     public void clearConversation(String email, Long conversationId) {
         User user = findUser(email);
         Conversation conversation = getConversationForUser(conversationId, user.getId());
-        
-        // 1. Delete all messages
+
+        // Group chats linked to a volunteer session cannot be deleted independently —
+        // the session holds a FK to this conversation. Clearing messages is safe; deletion is not.
+        boolean isSessionGroupChat = volunteerSessionRepository.findByGroupChatId(conversationId).isPresent();
+        if (isSessionGroupChat) {
+            // Only clear messages — do not delete the conversation itself
+            messageRepository.deleteByConversationId(conversationId);
+            return;
+        }
+
+        // 1:1 or standalone group chat — safe to delete
         messageRepository.deleteByConversationId(conversationId);
-        
-        // 2. Delete the conversation record
-        // This effectively "clears" it for both. 
-        // It will be re-created empty if they are connections and getConversations() is called.
         conversationRepository.delete(conversation);
     }
 

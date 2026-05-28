@@ -43,4 +43,12 @@ public class VolunteerController {
         volunteerService.joinSession(userDetails.getUsername(), id);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/sessions/{id}")
+    public ResponseEntity<Void> deleteSession(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        volunteerService.deleteSession(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
 }

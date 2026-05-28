@@ -9,4 +9,5 @@ public interface VolunteerParticipantRepository extends JpaRepository<VolunteerP
     long countBySessionId(Long sessionId);
     boolean existsBySessionIdAndParticipantId(Long sessionId, Long participantId);
     void deleteBySessionIdAndParticipantId(Long sessionId, Long participantId);
+    void deleteBySessionId(Long sessionId);
 }

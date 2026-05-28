@@ -167,6 +167,11 @@ public class AdminController {
         requireAdmin(p); adminService.rejectSession(id); return ResponseEntity.ok("Rejected");
     }
 
+    @DeleteMapping("/volunteer/sessions/{id}")
+    public ResponseEntity<String> deleteSession(@PathVariable Long id, Principal p) {
+        requireAdmin(p); adminService.deleteSession(id); return ResponseEntity.ok("Session deleted");
+    }
+
     // ── Badge revocation ──────────────────────────────────────────────────────
 
     @PatchMapping("/users/{userId}/revoke-badge")

@@ -39,14 +39,38 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(message);
     }
 
-    // Handles duplicate email / unique constraint violations
+    // Handles unique constraint violations and FK reference errors
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<String> handleDataIntegrity(DataIntegrityViolationException ex) {
         String msg = ex.getMostSpecificCause().getMessage();
-        if (msg != null && (msg.contains("email") || msg.contains("users"))) {
+        if (msg == null) {
+            log.error("DataIntegrityViolationException with null cause", ex);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("This action could not be completed due to a data conflict.");
+        }
+        // FK violation: trying to delete/update a row that other rows reference
+        if (msg.contains("foreign key") || msg.contains("violates foreign key") || msg.contains("constraint")) {
+            log.warn("FK constraint violation: {}", msg);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body("This item cannot be removed because other data depends on it. Please remove related items first.");
+        }
+        // Duplicate email / account
+        if (msg.contains("email") || msg.contains("users")) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("An account with this email already exists");
         }
-        return ResponseEntity.status(HttpStatus.CONFLICT).body("A duplicate entry already exists");
+        // Duplicate session participant
+        if (msg.contains("volunteer_participants") || msg.contains("uq_session_participant")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("You have already joined this session");
+        }
+        // Duplicate conversation participant
+        if (msg.contains("conversation_participants")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("You are already a member of this conversation");
+        }
+        // Duplicate swap request
+        if (msg.contains("uq_swap_requester_listing") || msg.contains("swap_requests")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("You have already requested this swap");
+        }
+        log.warn("Unhandled DataIntegrityViolationException: {}", msg);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body("This action could not be completed due to a data conflict.");
     }
 
     @ExceptionHandler(RateLimitException.class)

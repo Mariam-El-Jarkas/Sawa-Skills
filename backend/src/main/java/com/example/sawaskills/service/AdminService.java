@@ -42,6 +42,7 @@ public class AdminService {
     private final AdminBroadcastRepository adminBroadcastRepository;
     private final VerificationRequestRepository verificationRequestRepository;
     private final PlatformSettingsService platformSettingsService;
+    private final VolunteerService volunteerService;
 
     // ── Stats ────────────────────────────────────────────────────────────────
 
@@ -284,6 +285,12 @@ public class AdminService {
 
     public void approveSession(Long id) { VolunteerSession s = reqSession(id); s.setStatus("APPROVED"); volunteerSessionRepository.save(s); }
     public void rejectSession(Long id) { VolunteerSession s = reqSession(id); s.setStatus("REJECTED"); volunteerSessionRepository.save(s); }
+
+    @Transactional
+    public void deleteSession(Long id) {
+        volunteerService.deleteSessionById(id);
+        log("DELETE_SESSION", "admin_action", "Deleted session: " + id);
+    }
 
     // ── Skills ───────────────────────────────────────────────────────────────
 

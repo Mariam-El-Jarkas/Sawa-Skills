@@ -2,6 +2,7 @@ package com.example.sawaskills.service;
 
 import com.example.sawaskills.entity.*;
 import com.example.sawaskills.repository.*;
+import com.example.sawaskills.repository.MessageRepository;
 import com.example.sawaskills.dto.volunteer.VolunteerSessionRequest;
 import com.example.sawaskills.dto.volunteer.VolunteerSessionResponse;
 import com.example.sawaskills.util.MinorUtils;
@@ -29,6 +30,7 @@ public class VolunteerService {
     private final VolunteerParticipantRepository participantRepository;
     private final VerificationRequestRepository verificationRequestRepository;
     private final ParentApprovalService parentApprovalService;
+    private final MessageRepository messageRepository;
 
     public List<VolunteerSessionResponse> getAllSessions(String email) {
         Long userId = email != null ? userRepository.findByEmail(email).map(User::getId).orElse(null) : null;
@@ -127,6 +129,45 @@ public class VolunteerService {
 
         session = sessionRepository.save(session);
         return toResponse(session, user.getId());
+    }
+
+    @Transactional
+    public void deleteSession(String email, Long sessionId) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+        VolunteerSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+
+        if (session.getOrganizer() == null || !session.getOrganizer().getId().equals(user.getId())) {
+            throw new RuntimeException("You can only delete your own sessions");
+        }
+
+        deleteSessionCascade(session);
+    }
+
+    @Transactional
+    public void deleteSessionById(Long sessionId) {
+        VolunteerSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found"));
+        deleteSessionCascade(session);
+    }
+
+    private void deleteSessionCascade(VolunteerSession session) {
+        // 1. Delete all participants first (FK → volunteer_sessions)
+        participantRepository.deleteBySessionId(session.getId());
+
+        // 2. Detach the group chat FK on the session so we can delete the conversation
+        Conversation groupChat = session.getGroupChat();
+        if (groupChat != null) {
+            session.setGroupChat(null);
+            sessionRepository.save(session);
+
+            // 3. Delete messages in the group chat, then the conversation itself
+            messageRepository.deleteByConversationId(groupChat.getId());
+            conversationRepository.delete(groupChat);
+        }
+
+        // 4. Delete the session
+        sessionRepository.delete(session);
     }
 
     @Transactional

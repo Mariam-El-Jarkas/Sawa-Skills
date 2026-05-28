@@ -35,7 +35,8 @@ public class Conversation {
     @JoinTable(
         name = "conversation_participants",
         joinColumns = @JoinColumn(name = "conversation_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
+        inverseJoinColumns = @JoinColumn(name = "user_id"),
+        uniqueConstraints = @UniqueConstraint(name = "uq_conversation_user", columnNames = {"conversation_id", "user_id"})
     )
     @Builder.Default
     private Set<User> participants = new HashSet<>();
