@@ -41,6 +41,7 @@ export default function ChatScreen() {
   const [isSavingGroupInfo, setIsSavingGroupInfo] = useState(false);
   const [isClosingGroup, setIsClosingGroup] = useState(false);
   const [showCloseGroupConfirm, setShowCloseGroupConfirm] = useState(false);
+  const [pendingPicture, setPendingPicture] = useState<{ base64: string; uri: string } | null>(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -175,14 +176,20 @@ export default function ChatScreen() {
     });
     if (result.canceled) return;
     const base64 = result.assets?.[0]?.base64;
-    if (!base64) {
+    const uri = result.assets?.[0]?.uri;
+    if (!base64 || !uri) {
       showToast('Could not read image data. Please try a different image.', 'error');
       return;
     }
-    if (!activeConv) return;
+    setPendingPicture({ base64, uri });
+  };
+
+  const handleSaveGroupPicture = async () => {
+    if (!activeConv || !pendingPicture) return;
     setIsSavingGroupInfo(true);
     try {
-      await updateGroupInfo(activeConv.id, null, base64);
+      await updateGroupInfo(activeConv.id, null, pendingPicture.base64);
+      setPendingPicture(null);
       showToast('Group picture updated', 'success');
     } catch (e: any) {
       showToast(e.message ?? 'Failed to update picture', 'error');
@@ -522,10 +529,10 @@ export default function ChatScreen() {
             )}
           </View>
 
-          <Modal visible={showInfo} animationType="slide" transparent={true} onRequestClose={() => setShowInfo(false)}>
+          <Modal visible={showInfo} animationType="slide" transparent={true} onRequestClose={() => { setShowInfo(false); setPendingPicture(null); }}>
             <View style={s.modalOverlay}>
               <View style={s.modalContent}>
-                <View style={s.modalHdr}><View style={s.modalHandle} /><TouchableOpacity style={s.modalClose} onPress={() => setShowInfo(false)}><X size={24} color={C.gray400} /></TouchableOpacity></View>
+                <View style={s.modalHdr}><View style={s.modalHandle} /><TouchableOpacity style={s.modalClose} onPress={() => { setShowInfo(false); setPendingPicture(null); }}><X size={24} color={C.gray400} /></TouchableOpacity></View>
                 <ScrollView showsVerticalScrollIndicator={false}>
                   {/* Group avatar — admin can tap to change */}
                   <View style={s.groupInfoTop}>
@@ -535,18 +542,30 @@ export default function ChatScreen() {
                       activeOpacity={isAdmin ? 0.7 : 1}
                     >
                       <View style={s.groupAvatarLarge}>
-                        {activeConv?.profilePicture ? (
+                        {pendingPicture ? (
+                          <Image source={{ uri: pendingPicture.uri }} style={s.groupAvatarImg} resizeMode="cover" />
+                        ) : activeConv?.profilePicture ? (
                           <Image source={{ uri: resolveUrl(activeConv.profilePicture)! }} style={s.groupAvatarImg} resizeMode="cover" />
                         ) : (
                           <Text style={s.groupAvatarTxtLarge}>{activeConv?.otherUserInitials}</Text>
                         )}
                       </View>
-                      {isAdmin && (
+                      {isAdmin && !pendingPicture && (
                         <View style={s.groupPictureBadge}>
-                          {isSavingGroupInfo ? <ActivityIndicator size="small" color={C.white} /> : <Camera size={14} color={C.white} />}
+                          <Camera size={14} color={C.white} />
                         </View>
                       )}
                     </TouchableOpacity>
+                    {pendingPicture && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                        <TouchableOpacity onPress={() => setPendingPicture(null)} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: C.gray100 }}>
+                          <Text style={{ color: C.gray700, fontWeight: '600', fontSize: 13 }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleSaveGroupPicture} disabled={isSavingGroupInfo} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: C.violet600 }}>
+                          {isSavingGroupInfo ? <ActivityIndicator size="small" color={C.white} /> : <Text style={{ color: C.white, fontWeight: '700', fontSize: 13 }}>Save Picture</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
                     {/* Editable group name for admin */}
                     {isAdmin ? (
@@ -585,25 +604,30 @@ export default function ChatScreen() {
                         <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Clear History</Text>
                       </TouchableOpacity>
                     )}
-                    {/* Regular members: "Remove from Feed" for groups; "Delete Chat" for 1:1 */}
-                    {!isAdmin && (
-                      <TouchableOpacity
-                        style={[s.infoAction, { backgroundColor: 'rgba(124, 58, 237, 0.05)', borderColor: C.violet100, marginBottom: 12 }]}
-                        onPress={() => {
-                          if (!activeConv) return;
-                          if (activeConv.isGroup) {
-                            setConfirmHideConvId(activeConv.id);
-                            setShowInfo(false);
-                          } else {
-                            setConfirmDeleteConvId(activeConv.id);
-                            setShowInfo(false);
-                          }
-                        }}
-                      >
-                        <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
-                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>{activeConv?.isGroup ? 'Remove from Feed' : 'Delete Chat'}</Text>
+                    {/* Admin only: Close Group */}
+                    {isAdmin && !isClosed && (
+                      <TouchableOpacity style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100, marginBottom: 12 }]} onPress={() => { setShowInfo(false); setShowCloseGroupConfirm(true); }}>
+                        <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Lock size={18} color={C.violet600} /></View>
+                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Close Group</Text>
                       </TouchableOpacity>
                     )}
+                    {/* Remove from Feed (groups) / Delete Chat (1:1) — visible to all */}
+                    <TouchableOpacity
+                      style={[s.infoAction, { backgroundColor: 'rgba(124, 58, 237, 0.05)', borderColor: C.violet100, marginBottom: 12 }]}
+                      onPress={() => {
+                        if (!activeConv) return;
+                        if (activeConv.isGroup) {
+                          setConfirmHideConvId(activeConv.id);
+                          setShowInfo(false);
+                        } else {
+                          setConfirmDeleteConvId(activeConv.id);
+                          setShowInfo(false);
+                        }
+                      }}
+                    >
+                      <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Trash2 size={18} color={C.violet600} /></View>
+                      <Text style={[s.infoActionTxt, { color: C.violet600 }]}>{activeConv?.isGroup ? 'Remove from Feed' : 'Delete Chat'}</Text>
+                    </TouchableOpacity>
                     {activeConv?.isGroup && !isAdmin && !isClosed && (
                       <TouchableOpacity
                         style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100 }]}
@@ -631,15 +655,6 @@ export default function ChatScreen() {
                           <View style={s.permissionInfo}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Shield size={16} color={C.violet600} /><Text style={s.permissionLabel}>Open Messaging</Text></View><Text style={s.permissionSub}>Allow all members to send messages</Text></View>
                           <TouchableOpacity onPress={toggleEveryoneCanMessage} style={[s.toggle, activeConv?.everyoneCanMessage ? s.toggleOn : s.toggleOff]}><View style={[s.toggleKnob, activeConv?.everyoneCanMessage ? s.toggleKnobOn : s.toggleKnobOff]} /></TouchableOpacity>
                         </View>
-                      )}
-                      {!isClosed && (
-                        <TouchableOpacity style={[s.closeGroupBtn, { marginTop: 16 }]} onPress={() => setShowCloseGroupConfirm(true)}>
-                          <View style={s.closeGroupIcon}><AlertTriangle size={18} color="#DC2626" /></View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.closeGroupTxt}>Close Group</Text>
-                            <Text style={s.closeGroupSub}>Members can still view chat history</Text>
-                          </View>
-                        </TouchableOpacity>
                       )}
                     </View>
                   )}
