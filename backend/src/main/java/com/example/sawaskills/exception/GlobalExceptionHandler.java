@@ -91,12 +91,16 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(msg);
         }
         log.error("Unexpected server error", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("An unexpected error occurred. Please try again later.");
+        String debug = ex.getClass().getSimpleName() + ": " + ex.getMessage();
+        if (ex.getCause() != null) debug += " | caused by: " + ex.getCause().getMessage();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(debug);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleGeneralException(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred");
+        log.error("Unhandled exception", ex);
+        String debug = ex.getClass().getSimpleName() + ": " + ex.getMessage();
+        if (ex.getCause() != null) debug += " | caused by: " + ex.getCause().getMessage();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(debug);
     }
 }
