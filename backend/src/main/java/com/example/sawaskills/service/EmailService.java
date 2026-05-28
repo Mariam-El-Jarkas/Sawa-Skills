@@ -220,7 +220,7 @@ public class EmailService {
                           <td nowrap="nowrap">
                             <a href="%s"
                                style="display:inline-block;padding:13px 24px;
-                                      background:#ef4444;color:#ffffff;
+                                      background:#5b21b6;color:#ffffff;
                                       text-decoration:none;border-radius:10px;
                                       font-weight:700;font-size:15px;
                                       font-family:Arial,sans-serif;
