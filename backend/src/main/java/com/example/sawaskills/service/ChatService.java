@@ -265,13 +265,16 @@ public class ChatService {
 
         if (request.getPictureBase64() != null && !request.getPictureBase64().isBlank()) {
             try {
-                byte[] imageBytes = Base64.getDecoder().decode(request.getPictureBase64());
+                String raw = request.getPictureBase64();
+                // Strip data URI prefix (e.g. "data:image/jpeg;base64,") sent by web browsers
+                if (raw.contains(",")) raw = raw.substring(raw.indexOf(',') + 1);
+                byte[] imageBytes = Base64.getDecoder().decode(raw);
                 String key = "group-pictures/conv-" + conversationId + "-" + System.currentTimeMillis() + ".jpg";
                 String url = b2StorageService.upload(imageBytes, key, "image/jpeg");
                 conversation.setProfilePicture(url);
                 conversationRepository.updateProfilePicture(conversationId, url);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to upload group picture");
+                throw new RuntimeException("Failed to upload group picture: " + e.getMessage());
             }
         }
 
