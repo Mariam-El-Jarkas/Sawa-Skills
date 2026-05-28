@@ -326,8 +326,8 @@ export default function SkillsScreen() {
     pickerActionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.gray100 },
     pickerActionTxt: { fontSize: 14, fontWeight: '600', color: C.violet600 },
     pickerActionCancel: { fontSize: 14, fontWeight: '500', color: C.gray500 },
-    safetyBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFF7ED', borderRadius: 10, padding: 12, marginBottom: 4, borderWidth: 1, borderColor: '#FED7AA' },
-    safetyBannerTxt: { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 17 },
+    safetyBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: C.violet50, borderRadius: 10, padding: 12, marginBottom: 4, borderWidth: 1, borderColor: C.violet200 },
+    safetyBannerTxt: { flex: 1, fontSize: 12, color: C.violet700, lineHeight: 17 },
     submitBtn: { backgroundColor: C.violet600, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     submitBtnTxt: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   }), [C]);
@@ -748,7 +748,7 @@ export default function SkillsScreen() {
                     />
                     {sessErrors.address && <Text style={s.fieldError}>{sessErrors.address}</Text>}
                     <View style={[s.safetyBanner, { marginTop: 10 }]}>
-                      <AlertTriangle size={14} color="#F59E0B" style={{ marginTop: 1 }} />
+                      <AlertTriangle size={14} color={C.violet600} style={{ marginTop: 1 }} />
                       <Text style={s.safetyBannerTxt}>
                         Minors joining in-person sessions will require parent/guardian approval before they are added.
                       </Text>

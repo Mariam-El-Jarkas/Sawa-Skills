@@ -1228,8 +1228,8 @@ export default function ProfileScreen() {
                     <View style={{ alignItems: 'center', backgroundColor: C.gray50, padding: 20, borderRadius: 16, marginTop: 10 }}>
                       {profile!.volunteerStatus === 'PENDING' && (
                         <>
-                          <View style={[s.successIcon, { backgroundColor: '#FEF3C7', marginBottom: 12 }]}><Award size={36} color={C.violet500} /></View>
-                          <Text style={[s.verifyChoiceTitle, { textAlign: 'center', color: '#D97706' }]}>Application Pending</Text>
+                          <View style={[s.successIcon, { backgroundColor: C.violet100, marginBottom: 12 }]}><Award size={36} color={C.violet500} /></View>
+                          <Text style={[s.verifyChoiceTitle, { textAlign: 'center', color: C.violet600 }]}>Application Pending</Text>
                           <Text style={{ textAlign: 'center', color: C.gray500, marginTop: 8, fontSize: 13, lineHeight: 18 }}>We are currently reviewing your application. You will be notified once approved.</Text>
                         </>
                       )}

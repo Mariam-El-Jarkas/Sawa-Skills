@@ -359,7 +359,7 @@ export default function ChatScreen() {
     confirmCancelTxt: { fontSize: 14, fontWeight: '600', color: C.gray700 },
     confirmDeleteBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: C.violet600, borderRadius: 16 },
     confirmDeleteTxt: { fontSize: 14, fontWeight: '700', color: C.white },
-    confirmDangerBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: '#DC2626', borderRadius: 16 },
+    confirmDangerBtn: { flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: C.violet600, borderRadius: 16 },
     // Group picture picker
     groupAvatarWrap: { position: 'relative', marginBottom: 4 },
     groupPictureBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: C.violet600, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.white },
@@ -376,8 +376,8 @@ export default function ChatScreen() {
     closeGroupTxt: { fontSize: 15, fontWeight: '600', color: '#DC2626', flex: 1 },
     closeGroupSub: { fontSize: 12, color: '#DC2626', opacity: 0.7 },
     // Closed group banner
-    closedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#FEF3C7', borderBottomWidth: 1, borderBottomColor: '#F59E0B' },
-    closedBannerTxt: { fontSize: 13, color: '#92400E', fontWeight: '600', flex: 1 },
+    closedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: C.violet50, borderBottomWidth: 1, borderBottomColor: C.violet200 },
+    closedBannerTxt: { fontSize: 13, color: C.violet700, fontWeight: '600', flex: 1 },
     closedInput: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.gray100, borderRadius: 24, paddingVertical: 10, height: 44 },
     closedInputTxt: { color: C.gray500, fontSize: 13, fontWeight: '600' },
   }), [C]);
@@ -458,7 +458,7 @@ export default function ChatScreen() {
 
           {isClosed && (
             <View style={s.closedBanner}>
-              <AlertTriangle size={16} color="#92400E" />
+              <AlertTriangle size={16} color={C.violet600} />
               <Text style={s.closedBannerTxt}>
                 {isAdmin ? 'You closed this group. Members can still view message history.' : 'This group is no longer active. Message history is preserved for reference.'}
               </Text>
@@ -689,7 +689,7 @@ export default function ChatScreen() {
           <Modal visible={showCloseGroupConfirm} transparent animationType="fade">
             <View style={s.modalOverlayCenter}>
               <View style={s.confirmModal}>
-                <View style={[s.confirmIconBg, { backgroundColor: 'rgba(220,38,38,0.1)' }]}><AlertTriangle size={24} color="#DC2626" /></View>
+                <View style={[s.confirmIconBg, { backgroundColor: C.violet100 }]}><AlertTriangle size={24} color={C.violet600} /></View>
                 <Text style={s.confirmTitle}>Remove Group?</Text>
                 <Text style={s.confirmSubtitle}>This ends the session. No one can send messages anymore. The chat will be removed from everyone's feed but history is preserved.</Text>
                 <View style={s.confirmBtns}>
@@ -773,7 +773,7 @@ export default function ChatScreen() {
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         {chat.isGroup && <View style={s.groupBadge}><Text style={s.groupBadgeTxt}>Group</Text></View>}
-                        {chat.isClosed && <View style={[s.groupBadge, { backgroundColor: '#FEF3C7' }]}><Text style={[s.groupBadgeTxt, { color: '#92400E' }]}>Closed</Text></View>}
+                        {chat.isClosed && <View style={[s.groupBadge, { backgroundColor: C.violet100 }]}><Text style={[s.groupBadgeTxt, { color: C.violet600 }]}>Closed</Text></View>}
                       </View>
                       <Text style={s.chatLastMsg} numberOfLines={1}>{chat.lastMessage ?? (chat.isGroup ? `${chat.participantsCount} members` : 'No messages yet')}</Text>
                     </View>
