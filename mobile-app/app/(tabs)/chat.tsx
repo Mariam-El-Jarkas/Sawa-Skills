@@ -111,6 +111,9 @@ export default function ChatScreen() {
 
   const handleOpenConversation = async (chat: any) => {
     if (chat.id) {
+      if (!conversations.some(c => c.id === chat.id)) {
+        await fetchConversations();
+      }
       await openConversation(chat.id);
     } else if (chat.otherUserId) {
       try {
@@ -608,7 +611,7 @@ export default function ChatScreen() {
                     {isAdmin && !isClosed && (
                       <TouchableOpacity style={[s.infoAction, { backgroundColor: C.violet50, borderColor: C.violet100, marginBottom: 12 }]} onPress={() => { setShowInfo(false); setShowCloseGroupConfirm(true); }}>
                         <View style={[s.infoActionIcon, { backgroundColor: C.violet100 }]}><Lock size={18} color={C.violet600} /></View>
-                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Close Group</Text>
+                        <Text style={[s.infoActionTxt, { color: C.violet600 }]}>Remove Group</Text>
                       </TouchableOpacity>
                     )}
                     {/* Remove from Feed (groups) / Delete Chat (1:1) — visible to all */}
@@ -687,14 +690,14 @@ export default function ChatScreen() {
             <View style={s.modalOverlayCenter}>
               <View style={s.confirmModal}>
                 <View style={[s.confirmIconBg, { backgroundColor: 'rgba(220,38,38,0.1)' }]}><AlertTriangle size={24} color="#DC2626" /></View>
-                <Text style={s.confirmTitle}>Close Group?</Text>
-                <Text style={s.confirmSubtitle}>This permanently closes the group. No new messages can be sent. Members will still be able to view the chat history.</Text>
+                <Text style={s.confirmTitle}>Remove Group?</Text>
+                <Text style={s.confirmSubtitle}>This ends the session. No one can send messages anymore. The chat will be removed from everyone's feed but history is preserved.</Text>
                 <View style={s.confirmBtns}>
                   <TouchableOpacity style={s.confirmCancelBtn} onPress={() => setShowCloseGroupConfirm(false)}>
                     <Text style={s.confirmCancelTxt}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.confirmDangerBtn} onPress={handleCloseGroup} disabled={isClosingGroup}>
-                    {isClosingGroup ? <ActivityIndicator color="#fff" /> : <Text style={[s.confirmDeleteTxt, { color: '#fff' }]}>Close Group</Text>}
+                    {isClosingGroup ? <ActivityIndicator color="#fff" /> : <Text style={[s.confirmDeleteTxt, { color: '#fff' }]}>Remove Group</Text>}
                   </TouchableOpacity>
                 </View>
               </View>
