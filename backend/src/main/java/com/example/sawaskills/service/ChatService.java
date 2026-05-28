@@ -26,6 +26,7 @@ public class ChatService {
     private final StoryRepository storyRepository;
     private final VolunteerSessionRepository volunteerSessionRepository;
     private final VolunteerParticipantRepository volunteerParticipantRepository;
+    private final B2StorageService b2StorageService;
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("h:mm a");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("MMM d");
@@ -36,10 +37,11 @@ public class ChatService {
     public List<ConversationResponse> getConversations(String email) {
         User user = findUser(email);
 
-        // Get existing conversations where the user is a participant
+        // Get existing conversations where the user is a participant (exclude ones hidden by this user)
         List<Conversation> existing = conversationRepository.findByParticipantId(user.getId());
 
         return existing.stream()
+                .filter(c -> c.getHiddenBy().stream().noneMatch(h -> h.getId().equals(user.getId())))
                 .map(c -> toConversationResponse(c, user))
                 .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp, Comparator.reverseOrder()))
                 .collect(Collectors.toList());
@@ -99,6 +101,11 @@ public class ChatService {
     public MessageResponse sendMessage(String email, Long conversationId, SendMessageRequest request) {
         User user = findUser(email);
         Conversation conversation = getConversationForUser(conversationId, user.getId());
+
+        // Block messages in closed groups
+        if (conversation.isClosed()) {
+            throw new RuntimeException("This group has been closed and no longer accepts messages.");
+        }
 
         // Enforce group chat permissions
         if (conversation.getName() != null && !conversation.isEveryoneCanMessage()) {
@@ -238,6 +245,63 @@ public class ChatService {
         return results;
     }
 
+    // ── Update group info (admin only) ────────────────────────────────────────
+
+    @Transactional
+    public void updateGroupInfo(String email, Long conversationId, UpdateGroupInfoRequest request) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+
+        boolean isAdmin = conversation.getAdmin() != null && conversation.getAdmin().getId().equals(user.getId());
+        if (!isAdmin) throw new RuntimeException("Only the administrator can update group info");
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            conversation.setName(request.getName().trim());
+        }
+
+        if (request.getPictureBase64() != null && !request.getPictureBase64().isBlank()) {
+            try {
+                byte[] imageBytes = Base64.getDecoder().decode(request.getPictureBase64());
+                String key = "group-pictures/conv-" + conversationId + "-" + System.currentTimeMillis() + ".jpg";
+                String url = b2StorageService.upload(imageBytes, key, "image/jpeg");
+                conversation.setProfilePicture(url);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to upload group picture");
+            }
+        }
+
+        conversationRepository.save(conversation);
+    }
+
+    // ── Close group (admin only) ──────────────────────────────────────────────
+
+    @Transactional
+    public void closeGroup(String email, Long conversationId) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+
+        boolean isAdmin = conversation.getAdmin() != null && conversation.getAdmin().getId().equals(user.getId());
+        if (!isAdmin) throw new RuntimeException("Only the administrator can close this group");
+
+        conversation.setClosed(true);
+        conversationRepository.save(conversation);
+
+        // Notify all non-admin participants
+        conversation.getParticipants().stream()
+                .filter(p -> !p.getId().equals(user.getId()))
+                .forEach(p -> notificationService.notifyGroupClosed(p, user, conversationId, conversation.getName()));
+    }
+
+    // ── Hide conversation from user's feed ────────────────────────────────────
+
+    @Transactional
+    public void hideConversation(String email, Long conversationId) {
+        User user = findUser(email);
+        Conversation conversation = getConversationForUser(conversationId, user.getId());
+        conversation.getHiddenBy().add(user);
+        conversationRepository.save(conversation);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Conversation getConversationForUser(Long conversationId, Long userId) {
@@ -299,6 +363,8 @@ public class ChatService {
                     .everyoneCanMessage(c.isEveryoneCanMessage())
                     .participantsCount(c.getParticipants().size())
                     .participants(participants)
+                    .profilePicture(c.getProfilePicture())
+                    .isClosed(c.isClosed())
                     .build();
         }
 

@@ -24,6 +24,8 @@ export interface Conversation {
   everyoneCanMessage?: boolean;
   participantsCount?: number;
   participants?: ParticipantInfo[];
+  profilePicture?: string | null;
+  isClosed?: boolean;
 }
 
 export interface ChatMessage {
@@ -106,5 +108,17 @@ export const chatService = {
 
   leaveGroup(conversationId: number, token: string): Promise<void> {
     return apiPost<void>(`/api/chat/conversations/${conversationId}/leave`, {}, token);
+  },
+
+  updateGroupInfo(conversationId: number, name: string | null, pictureBase64: string | null, token: string): Promise<void> {
+    return apiPatch<void>(`/api/chat/conversations/${conversationId}/info`, { name, pictureBase64 }, token);
+  },
+
+  closeGroup(conversationId: number, token: string): Promise<void> {
+    return apiPost<void>(`/api/chat/conversations/${conversationId}/close`, {}, token);
+  },
+
+  hideConversation(conversationId: number, token: string): Promise<void> {
+    return apiPost<void>(`/api/chat/conversations/${conversationId}/hide`, {}, token);
   },
 };

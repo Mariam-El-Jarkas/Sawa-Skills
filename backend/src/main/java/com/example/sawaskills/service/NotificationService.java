@@ -290,6 +290,19 @@ public class NotificationService {
                 .build());
     }
 
+    public void notifyGroupClosed(User recipient, User admin, Long conversationId, String groupName) {
+        save(Notification.builder()
+                .user(recipient)
+                .type("GROUP_CLOSED")
+                .message("\"" + groupName + "\" has been closed by the admin")
+                .actorId(admin.getId())
+                .actorName(admin.getName())
+                .referenceId(conversationId)
+                .read(false)
+                .createdAt(LocalDateTime.now())
+                .build());
+    }
+
     // ── Read / list ────────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> getNotifications(String email) {

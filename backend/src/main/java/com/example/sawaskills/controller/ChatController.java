@@ -108,4 +108,32 @@ public class ChatController {
         chatService.leaveGroup(userDetails.getUsername(), id);
         return ResponseEntity.ok(Map.of("message", "Left group successfully"));
     }
+
+    // ── PATCH /api/chat/conversations/{id}/info — update group info (admin) ──
+    @PatchMapping("/conversations/{id}/info")
+    public ResponseEntity<Map<String, String>> updateGroupInfo(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody UpdateGroupInfoRequest request) {
+        chatService.updateGroupInfo(userDetails.getUsername(), id, request);
+        return ResponseEntity.ok(Map.of("message", "Group info updated successfully"));
+    }
+
+    // ── POST /api/chat/conversations/{id}/close — close group (admin) ─────────
+    @PostMapping("/conversations/{id}/close")
+    public ResponseEntity<Map<String, String>> closeGroup(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        chatService.closeGroup(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Group closed successfully"));
+    }
+
+    // ── POST /api/chat/conversations/{id}/hide — hide from feed ───────────────
+    @PostMapping("/conversations/{id}/hide")
+    public ResponseEntity<Map<String, String>> hideConversation(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        chatService.hideConversation(userDetails.getUsername(), id);
+        return ResponseEntity.ok(Map.of("message", "Conversation hidden"));
+    }
 }

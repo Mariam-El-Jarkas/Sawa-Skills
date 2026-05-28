@@ -31,6 +31,12 @@ public class Conversation {
     @Builder.Default
     private boolean everyoneCanMessage = true;
 
+    private String profilePicture;
+
+    @Builder.Default
+    @Column(name = "is_closed")
+    private boolean closed = false;
+
     @ManyToMany
     @JoinTable(
         name = "conversation_participants",
@@ -40,5 +46,14 @@ public class Conversation {
     )
     @Builder.Default
     private Set<User> participants = new HashSet<>();
+
+    @ManyToMany
+    @JoinTable(
+        name = "conversation_hidden_by",
+        joinColumns = @JoinColumn(name = "conversation_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    @Builder.Default
+    private Set<User> hiddenBy = new HashSet<>();
 
 }

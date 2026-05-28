@@ -26,6 +26,10 @@ public class ConversationResponse {
     private boolean everyoneCanMessage;
     private int participantsCount;
     private List<ParticipantInfo> participants;
+    private String profilePicture;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isClosed")
+    private boolean isClosed;
 
     @Getter
     @Setter

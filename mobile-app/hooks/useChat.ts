@@ -23,6 +23,9 @@ interface ChatActions {
   clearConversation: (conversationId: number) => Promise<void>;
   clearMessages: (conversationId: number) => Promise<void>;
   leaveGroup: (conversationId: number) => Promise<void>;
+  updateGroupInfo: (conversationId: number, name: string | null, pictureBase64: string | null) => Promise<void>;
+  closeGroup: (conversationId: number) => Promise<void>;
+  hideConversation: (conversationId: number) => Promise<void>;
 }
 
 const POLL_INTERVAL = 5000; // 5 seconds
@@ -211,10 +214,55 @@ export function useChat(): ChatState & ChatActions {
     }
   }, [token, activeConversationId]);
 
+  const updateGroupInfo = useCallback(async (conversationId: number, name: string | null, pictureBase64: string | null) => {
+    if (!token) return;
+    try {
+      await chatService.updateGroupInfo(conversationId, name, pictureBase64, token);
+      // Optimistically update name; refetch to sync any B2 picture URL
+      if (name) {
+        setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, otherUserName: name } : c));
+      }
+      if (pictureBase64) {
+        // Refetch in background to get the B2 picture URL
+        chatService.getConversations(token).then(setConversations).catch(() => {});
+      }
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token]);
+
+  const closeGroup = useCallback(async (conversationId: number) => {
+    if (!token) return;
+    try {
+      await chatService.closeGroup(conversationId, token);
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, isClosed: true } : c));
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token]);
+
+  const hideConversation = useCallback(async (conversationId: number) => {
+    if (!token) return;
+    try {
+      await chatService.hideConversation(conversationId, token);
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    }
+  }, [token, activeConversationId]);
+
   return {
     conversations, activeConversationId, messages,
     isLoading, isMessagesLoading, error,
     fetchConversations, openConversation, closeConversation,
-    startConversation, sendMessage, markRead, updatePermissions, clearConversation, clearMessages, leaveGroup
+    startConversation, sendMessage, markRead, updatePermissions, clearConversation, clearMessages,
+    leaveGroup, updateGroupInfo, closeGroup, hideConversation,
   };
 }
