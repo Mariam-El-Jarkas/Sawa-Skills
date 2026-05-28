@@ -26,7 +26,6 @@ export default function RootLayout() {
                   <Stack.Screen name="notifications/index" options={{ animation: 'slide_from_right' }} />
                   <Stack.Screen name="volunteer/index" options={{ animation: 'slide_from_right' }} />
                   <Stack.Screen name="post/[postId]" options={{ animation: 'slide_from_right' }} />
-                  <Stack.Screen name="parent-approval/[token]/[decision]" options={{ animation: 'fade' }} />
                 </Stack>
               )}
               {/* Rendered at root level so it appears above ALL stack screens */}

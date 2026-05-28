@@ -161,6 +161,11 @@ export default function ChatScreen() {
   };
 
   const handlePickGroupPicture = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showToast('Photo library access is required to set a group picture', 'error');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -168,10 +173,16 @@ export default function ChatScreen() {
       quality: 0.6,
       base64: true,
     });
-    if (result.canceled || !result.assets[0]?.base64 || !activeConv) return;
+    if (result.canceled) return;
+    const base64 = result.assets?.[0]?.base64;
+    if (!base64) {
+      showToast('Could not read image data. Please try a different image.', 'error');
+      return;
+    }
+    if (!activeConv) return;
     setIsSavingGroupInfo(true);
     try {
-      await updateGroupInfo(activeConv.id, null, result.assets[0].base64);
+      await updateGroupInfo(activeConv.id, null, base64);
       showToast('Group picture updated', 'success');
     } catch (e: any) {
       showToast(e.message ?? 'Failed to update picture', 'error');
@@ -621,6 +632,15 @@ export default function ChatScreen() {
                           <TouchableOpacity onPress={toggleEveryoneCanMessage} style={[s.toggle, activeConv?.everyoneCanMessage ? s.toggleOn : s.toggleOff]}><View style={[s.toggleKnob, activeConv?.everyoneCanMessage ? s.toggleKnobOn : s.toggleKnobOff]} /></TouchableOpacity>
                         </View>
                       )}
+                      {!isClosed && (
+                        <TouchableOpacity style={[s.closeGroupBtn, { marginTop: 16 }]} onPress={() => setShowCloseGroupConfirm(true)}>
+                          <View style={s.closeGroupIcon}><AlertTriangle size={18} color="#DC2626" /></View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.closeGroupTxt}>Close Group</Text>
+                            <Text style={s.closeGroupSub}>Members can still view chat history</Text>
+                          </View>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
 
@@ -640,19 +660,6 @@ export default function ChatScreen() {
                           ))
                         )}
                       </View>
-                    </View>
-                  )}
-
-                  {/* Admin: Close Group button (danger zone) */}
-                  {isAdmin && !isClosed && (
-                    <View style={s.closeGroupSection}>
-                      <TouchableOpacity style={s.closeGroupBtn} onPress={() => setShowCloseGroupConfirm(true)}>
-                        <View style={s.closeGroupIcon}><AlertTriangle size={18} color="#DC2626" /></View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.closeGroupTxt}>Close Group</Text>
-                          <Text style={s.closeGroupSub}>Members can still view chat history</Text>
-                        </View>
-                      </TouchableOpacity>
                     </View>
                   )}
                 </ScrollView>

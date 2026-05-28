@@ -111,12 +111,11 @@ public class ChatController {
 
     // ── PATCH /api/chat/conversations/{id}/info — update group info (admin) ──
     @PatchMapping("/conversations/{id}/info")
-    public ResponseEntity<Map<String, String>> updateGroupInfo(
+    public ResponseEntity<ConversationResponse> updateGroupInfo(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
             @RequestBody UpdateGroupInfoRequest request) {
-        chatService.updateGroupInfo(userDetails.getUsername(), id, request);
-        return ResponseEntity.ok(Map.of("message", "Group info updated successfully"));
+        return ResponseEntity.ok(chatService.updateGroupInfo(userDetails.getUsername(), id, request));
     }
 
     // ── POST /api/chat/conversations/{id}/close — close group (admin) ─────────

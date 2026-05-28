@@ -41,7 +41,13 @@ public class ChatService {
         List<Conversation> existing = conversationRepository.findByParticipantId(user.getId());
 
         return existing.stream()
-                .filter(c -> c.getHiddenBy().stream().noneMatch(h -> h.getId().equals(user.getId())))
+                .filter(c -> {
+                    try {
+                        return c.getHiddenBy().stream().noneMatch(h -> h.getId().equals(user.getId()));
+                    } catch (Exception e) {
+                        return true; // show conversation if hidden-by check fails (e.g. table not yet migrated)
+                    }
+                })
                 .map(c -> toConversationResponse(c, user))
                 .sorted(Comparator.comparing(ConversationResponse::getLastTimestamp, Comparator.reverseOrder()))
                 .collect(Collectors.toList());
@@ -248,7 +254,7 @@ public class ChatService {
     // ── Update group info (admin only) ────────────────────────────────────────
 
     @Transactional
-    public void updateGroupInfo(String email, Long conversationId, UpdateGroupInfoRequest request) {
+    public ConversationResponse updateGroupInfo(String email, Long conversationId, UpdateGroupInfoRequest request) {
         User user = findUser(email);
         Conversation conversation = getConversationForUser(conversationId, user.getId());
 
@@ -271,6 +277,7 @@ public class ChatService {
         }
 
         conversationRepository.save(conversation);
+        return toConversationResponse(conversation, user);
     }
 
     // ── Close group (admin only) ──────────────────────────────────────────────
@@ -297,9 +304,8 @@ public class ChatService {
     @Transactional
     public void hideConversation(String email, Long conversationId) {
         User user = findUser(email);
-        Conversation conversation = getConversationForUser(conversationId, user.getId());
-        conversation.getHiddenBy().add(user);
-        conversationRepository.save(conversation);
+        getConversationForUser(conversationId, user.getId()); // validates membership
+        conversationRepository.insertHiddenBy(conversationId, user.getId());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

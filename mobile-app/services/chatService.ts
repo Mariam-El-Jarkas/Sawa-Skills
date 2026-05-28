@@ -110,8 +110,8 @@ export const chatService = {
     return apiPost<void>(`/api/chat/conversations/${conversationId}/leave`, {}, token);
   },
 
-  updateGroupInfo(conversationId: number, name: string | null, pictureBase64: string | null, token: string): Promise<void> {
-    return apiPatch<void>(`/api/chat/conversations/${conversationId}/info`, { name, pictureBase64 }, token);
+  updateGroupInfo(conversationId: number, name: string | null, pictureBase64: string | null, token: string): Promise<Conversation> {
+    return apiPatch<Conversation>(`/api/chat/conversations/${conversationId}/info`, { name, pictureBase64 }, token);
   },
 
   closeGroup(conversationId: number, token: string): Promise<void> {

@@ -160,8 +160,8 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), authProvider.getPasswordHash())) {
             throw new RuntimeException("Invalid credentials");
         }
-        if (!Boolean.TRUE.equals(user.getVerified())) {
-            throw new RuntimeException("Email not verified. Please check your inbox for a verification code or use 'Resend code'.");
+        if (!user.getVerified()) {
+            throw new RuntimeException("Email not verified");
         }
         String token = jwtService.generateToken(user.getId(), user.getEmail());
         return LoginResponse.builder()

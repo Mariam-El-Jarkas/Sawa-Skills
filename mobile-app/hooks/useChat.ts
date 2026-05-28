@@ -217,15 +217,8 @@ export function useChat(): ChatState & ChatActions {
   const updateGroupInfo = useCallback(async (conversationId: number, name: string | null, pictureBase64: string | null) => {
     if (!token) return;
     try {
-      await chatService.updateGroupInfo(conversationId, name, pictureBase64, token);
-      // Optimistically update name; refetch to sync any B2 picture URL
-      if (name) {
-        setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, otherUserName: name } : c));
-      }
-      if (pictureBase64) {
-        // Refetch in background to get the B2 picture URL
-        chatService.getConversations(token).then(setConversations).catch(() => {});
-      }
+      const updated = await chatService.updateGroupInfo(conversationId, name, pictureBase64, token);
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, ...updated } : c));
     } catch (e: any) {
       setError(e.message);
       throw e;

@@ -49,9 +49,8 @@ public class EmailService {
 
     public void sendParentActionApprovalEmail(String parentEmail, String childName,
                                                String actionType, String context, String token) {
-        // Deep link opens the app directly; web URL is the fallback shown as plain text
-        String approveLink = "mobile://parent-approval/" + token + "/approve";
-        String declineLink  = "mobile://parent-approval/" + token + "/decline";
+        String approveLink = baseUrl + "/api/parent-approval/" + token + "?decision=APPROVE";
+        String declineLink  = baseUrl + "/api/parent-approval/" + token + "?decision=DECLINE";
 
         String actionLabel = switch (actionType) {
             case "SWAP_REQUEST"    -> "request a skill swap";
