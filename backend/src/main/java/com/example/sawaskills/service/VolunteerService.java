@@ -36,6 +36,7 @@ public class VolunteerService {
         Long userId = email != null ? userRepository.findByEmail(email).map(User::getId).orElse(null) : null;
         return sessionRepository.findAll().stream()
                 .filter(s -> "APPROVED".equals(s.getStatus()))
+                .filter(s -> s.getGroupChat() == null || !s.getGroupChat().isClosed())
                 .map(s -> toResponse(s, userId))
                 .collect(Collectors.toList());
     }
@@ -235,7 +236,7 @@ public class VolunteerService {
                 .date(dateStr)
                 .time(timeStr)
                 .organizer(org != null ? org.getName() : "Unknown")
-                .status("upcoming")
+                .status(computeDisplayStatus(session))
                 .participants((int)participantCount)
                 .isJoined(isJoined)
                 .isOrganizer(isOrganizer)
@@ -245,6 +246,12 @@ public class VolunteerService {
                 .locationType(session.getLocationType())
                 .location(session.getLocation())
                 .build();
+    }
+
+    private String computeDisplayStatus(VolunteerSession session) {
+        if ("ENDED".equals(session.getStatus())) return "ended";
+        if (session.getSessionDate() != null && session.getSessionDate().isBefore(LocalDateTime.now())) return "ongoing";
+        return "upcoming";
     }
 
     private Integer computeAge(User user) {

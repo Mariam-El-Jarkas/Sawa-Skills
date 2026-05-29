@@ -474,10 +474,22 @@ export default function SkillsScreen() {
               </View>
             ) : (
               mySessions.map(sess => (
-                <View key={sess.id} style={s.sessionCard}>
+                <TouchableOpacity
+                  key={sess.id}
+                  style={s.sessionCard}
+                  onPress={() => sess.groupChatId && sess.status !== 'ended'
+                    ? router.push({ pathname: '/chat', params: { openId: sess.groupChatId.toString() } })
+                    : undefined}
+                  activeOpacity={sess.groupChatId && sess.status !== 'ended' ? 0.7 : 1}
+                >
                   <View style={s.sessionCardTop}>
                     <Text style={s.sessionTitle} numberOfLines={1}>{sess.title}</Text>
-                    <View style={[s.sessionStatusBadge, { backgroundColor: '#7C3AED' }]}>
+                    <View style={[s.sessionStatusBadge, {
+                      backgroundColor:
+                        sess.status === 'ended'   ? C.gray400 :
+                        sess.status === 'ongoing' ? '#059669' :
+                        '#7C3AED',
+                    }]}>
                       <Text style={[s.sessionStatusTxt, { color: '#ffffff' }]}>{sess.status}</Text>
                     </View>
                   </View>
@@ -499,7 +511,7 @@ export default function SkillsScreen() {
                       </View>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               ))
             )}
           </View>

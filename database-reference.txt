@@ -1,0 +1,1011 @@
+================================================================================
+  SAWASKILLS — COMPLETE DATABASE REFERENCE
+  Generated from actual JPA entity models
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 1 — TABLES & COLUMNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+────────────────────────────────────────
+TABLE: users
+────────────────────────────────────────
+  id                              BIGINT        PK, AUTO_INCREMENT
+  name                            VARCHAR
+  email                           VARCHAR       UNIQUE, NULLABLE
+  phone_number                    VARCHAR
+  bio                             VARCHAR
+  profile_picture                 TEXT
+  role                            VARCHAR
+  dob                             DATE
+  gender                          VARCHAR(20)
+  verified                        BOOLEAN
+  account_status                  VARCHAR(20)   DEFAULT 'ACTIVE'
+  public_profile                  BOOLEAN       DEFAULT true
+  allow_messages                  BOOLEAN       DEFAULT true
+  swap_notifications_enabled      BOOLEAN       DEFAULT true
+  message_notifications_enabled   BOOLEAN       DEFAULT true
+  skill_news_notifications_enabled BOOLEAN      DEFAULT true
+  created_at                      TIMESTAMP
+  deleted_at                      TIMESTAMP
+  deleted_email_hash               VARCHAR
+  location_id                     BIGINT        FK → locations.id
+
+────────────────────────────────────────
+TABLE: locations
+────────────────────────────────────────
+  id        BIGINT    PK, AUTO_INCREMENT
+  city      VARCHAR
+  region    VARCHAR
+
+────────────────────────────────────────
+TABLE: auth_providers
+────────────────────────────────────────
+  id                BIGINT      PK, AUTO_INCREMENT
+  provider          VARCHAR     NOT NULL  (LOCAL | GITHUB | GOOGLE)
+  provider_user_id  VARCHAR
+  password_hash     VARCHAR
+  created_at        TIMESTAMP
+  user_id           BIGINT      FK → users.id  NOT NULL
+
+────────────────────────────────────────
+TABLE: otp_verifications
+────────────────────────────────────────
+  id          BIGINT      PK, AUTO_INCREMENT
+  email       VARCHAR     NOT NULL
+  otp_hash    VARCHAR     NOT NULL
+  expires_at  TIMESTAMP   NOT NULL
+  used        BOOLEAN
+  created_at  TIMESTAMP
+
+────────────────────────────────────────
+TABLE: password_reset_tokens
+────────────────────────────────────────
+  id          BIGINT      PK, AUTO_INCREMENT
+  email       VARCHAR
+  token       VARCHAR     UNIQUE
+  expires_at  TIMESTAMP
+  used        BOOLEAN
+  created_at  TIMESTAMP
+
+────────────────────────────────────────
+TABLE: email_change_requests
+────────────────────────────────────────
+  id                  BIGINT      PK, AUTO_INCREMENT
+  current_email       VARCHAR     NOT NULL
+  pending_email       VARCHAR     NOT NULL
+  otp_hash            VARCHAR     NOT NULL
+  verification_step   VARCHAR     (VERIFY_CURRENT | VERIFY_NEW)
+  expires_at          TIMESTAMP   NOT NULL
+  created_at          TIMESTAMP
+  used                BOOLEAN
+
+────────────────────────────────────────
+TABLE: notification_preferences
+────────────────────────────────────────
+  id                  BIGINT    PK, AUTO_INCREMENT
+  email_enabled       BOOLEAN
+  swap_enabled        BOOLEAN
+  message_enabled     BOOLEAN
+  community_enabled   BOOLEAN
+  user_id             BIGINT    FK → users.id  (UNIQUE — 1 per user)
+
+────────────────────────────────────────
+TABLE: skill_categories
+────────────────────────────────────────
+  id           BIGINT    PK, AUTO_INCREMENT
+  name         VARCHAR
+  description  VARCHAR
+  icon_key     VARCHAR   DEFAULT 'Other'
+
+────────────────────────────────────────
+TABLE: skills
+────────────────────────────────────────
+  id           BIGINT    PK, AUTO_INCREMENT
+  skill_name   VARCHAR
+  category_id  BIGINT    FK → skill_categories.id
+
+────────────────────────────────────────
+TABLE: user_skills
+────────────────────────────────────────
+  id        BIGINT    PK, AUTO_INCREMENT
+  level     VARCHAR
+  offering  BOOLEAN
+  user_id   BIGINT    FK → users.id
+  skill_id  BIGINT    FK → skills.id
+
+────────────────────────────────────────
+TABLE: exchange_listings
+────────────────────────────────────────
+  id             BIGINT    PK, AUTO_INCREMENT
+  offered_skill  VARCHAR   NOT NULL
+  wanted_skill   VARCHAR
+  location       VARCHAR
+  availability   VARCHAR
+  active         BOOLEAN   DEFAULT true
+  is_free        BOOLEAN   DEFAULT false
+  created_at     TIMESTAMP
+  owner_id       BIGINT    FK → users.id  NOT NULL
+
+────────────────────────────────────────
+TABLE: swap_requests
+────────────────────────────────────────
+  id                  BIGINT    PK, AUTO_INCREMENT
+  status              VARCHAR
+  description         VARCHAR
+  offered_skill       VARCHAR
+  wanted_skill        VARCHAR
+  preferred_time      VARCHAR
+  note                VARCHAR
+  requester_finished  BOOLEAN   DEFAULT false
+  receiver_finished   BOOLEAN   DEFAULT false
+  created_at          TIMESTAMP
+  updated_at          TIMESTAMP
+  listing_id          BIGINT    FK → exchange_listings.id
+  requester_id        BIGINT    FK → users.id
+  receiver_id         BIGINT    FK → users.id
+  UNIQUE (requester_id, listing_id)  -- uq_swap_requester_listing
+
+────────────────────────────────────────
+TABLE: swap_sessions
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  session_date     TIMESTAMP
+  duration_minutes INT
+  swap_request_id  BIGINT    FK → swap_requests.id
+
+────────────────────────────────────────
+TABLE: reviews
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  swap_id          BIGINT
+  rating           INT
+  comment          VARCHAR
+  created_at       TIMESTAMP
+  reviewer_id      BIGINT    FK → users.id
+  reviewed_user_id BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: posts
+────────────────────────────────────────
+  id            BIGINT    PK, AUTO_INCREMENT
+  content       VARCHAR
+  image_url     TEXT
+  document_url  TEXT
+  poll_question VARCHAR
+  poll_options  VARCHAR
+  visibility    VARCHAR   DEFAULT 'EVERYONE'  (EVERYONE | FOLLOWERS)
+  admin_hidden  BOOLEAN   DEFAULT false
+  created_at    TIMESTAMP
+  author_id     BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: comments
+────────────────────────────────────────
+  id                BIGINT    PK, AUTO_INCREMENT
+  content           VARCHAR
+  created_at        TIMESTAMP
+  author_id         BIGINT    FK → users.id
+  post_id           BIGINT    FK → posts.id
+  parent_comment_id BIGINT    FK → comments.id  (self-referencing, NULLABLE)
+
+────────────────────────────────────────
+TABLE: post_likes
+────────────────────────────────────────
+  id       BIGINT    PK, AUTO_INCREMENT
+  user_id  BIGINT    FK → users.id
+  post_id  BIGINT    FK → posts.id
+
+────────────────────────────────────────
+TABLE: comment_likes
+────────────────────────────────────────
+  id          BIGINT    PK, AUTO_INCREMENT
+  created_at  TIMESTAMP
+  user_id     BIGINT    FK → users.id    NOT NULL
+  comment_id  BIGINT    FK → comments.id NOT NULL
+
+────────────────────────────────────────
+TABLE: post_shares
+────────────────────────────────────────
+  id          BIGINT    PK, AUTO_INCREMENT
+  share_type  VARCHAR   NOT NULL
+  created_at  TIMESTAMP
+  user_id     BIGINT    FK → users.id  NOT NULL
+  post_id     BIGINT    FK → posts.id  NOT NULL
+
+────────────────────────────────────────
+TABLE: poll_votes
+────────────────────────────────────────
+  id              BIGINT    PK, AUTO_INCREMENT
+  selected_option VARCHAR
+  created_at      TIMESTAMP
+  post_id         BIGINT    FK → posts.id
+  user_id         BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: stories
+────────────────────────────────────────
+  id            BIGINT    PK, AUTO_INCREMENT
+  media_url     TEXT
+  text_content  VARCHAR
+  poll_question VARCHAR
+  poll_options  VARCHAR
+  bg_index      INT
+  created_at    TIMESTAMP
+  expires_at    TIMESTAMP
+  user_id       BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: story_likes
+────────────────────────────────────────
+  id          BIGINT    PK, AUTO_INCREMENT
+  created_at  TIMESTAMP
+  story_id    BIGINT    FK → stories.id  NOT NULL
+  user_id     BIGINT    FK → users.id    NOT NULL
+
+────────────────────────────────────────
+TABLE: story_views
+────────────────────────────────────────
+  id         BIGINT    PK, AUTO_INCREMENT
+  viewed_at  TIMESTAMP
+  story_id   BIGINT    FK → stories.id
+  viewer_id  BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: story_poll_votes
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  selected_option  VARCHAR
+  created_at       TIMESTAMP
+  story_id         BIGINT    FK → stories.id
+  user_id          BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: connections
+────────────────────────────────────────
+  id            BIGINT    PK, AUTO_INCREMENT
+  status        VARCHAR
+  created_at    TIMESTAMP
+  requester_id  BIGINT    FK → users.id
+  receiver_id   BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: reports
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  reason           VARCHAR
+  status           VARCHAR
+  created_at       TIMESTAMP
+  reporter_id      BIGINT    FK → users.id
+  reported_post_id BIGINT    FK → posts.id
+
+────────────────────────────────────────
+TABLE: notifications
+────────────────────────────────────────
+  id           BIGINT    PK, AUTO_INCREMENT
+  type         VARCHAR
+  message      VARCHAR
+  read         BOOLEAN
+  actor_id     BIGINT
+  actor_name   VARCHAR
+  reference_id BIGINT
+  created_at   TIMESTAMP
+  user_id      BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: conversations
+────────────────────────────────────────
+  id                    BIGINT    PK, AUTO_INCREMENT
+  name                  VARCHAR   (NULL for 1:1 chats, set for group chats)
+  profile_picture       TEXT
+  everyone_can_message  BOOLEAN   NOT NULL, DEFAULT true
+  is_closed             BOOLEAN   NOT NULL, DEFAULT false
+  created_at            TIMESTAMP
+  admin_id              BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: conversation_participants   [JOIN TABLE — M:N]
+────────────────────────────────────────
+  conversation_id  BIGINT    FK → conversations.id
+  user_id          BIGINT    FK → users.id
+  UNIQUE (conversation_id, user_id)  -- uq_conversation_user
+  PRIMARY KEY (conversation_id, user_id)
+
+────────────────────────────────────────
+TABLE: conversation_hidden_by   [JOIN TABLE — M:N]
+────────────────────────────────────────
+  conversation_id  BIGINT    FK → conversations.id
+  user_id          BIGINT    FK → users.id
+  PRIMARY KEY (conversation_id, user_id)
+
+────────────────────────────────────────
+TABLE: messages
+────────────────────────────────────────
+  id                      BIGINT    PK, AUTO_INCREMENT
+  content                 VARCHAR
+  read                    BOOLEAN
+  sent_at                 TIMESTAMP
+  reply_to_story_id       BIGINT    (reference only, no FK constraint)
+  reply_to_story_text     VARCHAR
+  reply_to_story_media    VARCHAR
+  shared_post_id          BIGINT    (reference only, no FK constraint)
+  shared_post_author_id   BIGINT
+  shared_post_author_name VARCHAR
+  shared_post_content     VARCHAR
+  shared_post_image       VARCHAR
+  shared_post_poll_options VARCHAR
+  conversation_id         BIGINT    FK → conversations.id
+  sender_id               BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: news_articles
+────────────────────────────────────────
+  id                BIGINT    PK, AUTO_INCREMENT
+  title             VARCHAR
+  content           VARCHAR(5000)
+  source            VARCHAR
+  url               VARCHAR
+  published_at      TIMESTAMP
+  skill_category_id BIGINT    FK → skill_categories.id
+
+────────────────────────────────────────
+TABLE: volunteer_sessions
+────────────────────────────────────────
+  id               BIGINT      PK, AUTO_INCREMENT
+  title            VARCHAR
+  description      VARCHAR
+  session_date     TIMESTAMP
+  status           VARCHAR(20) DEFAULT 'PENDING_REVIEW'
+                               (PENDING_REVIEW | APPROVED | REJECTED)
+  max_participants INT
+  location_type    VARCHAR(20) DEFAULT 'REMOTE'  (REMOTE | IN_PERSON)
+  location         VARCHAR(255)
+  organizer_id     BIGINT      FK → users.id
+  conversation_id  BIGINT      FK → conversations.id  (1:1 group chat)
+
+────────────────────────────────────────
+TABLE: volunteer_participants
+────────────────────────────────────────
+  id              BIGINT    PK, AUTO_INCREMENT
+  session_id      BIGINT    FK → volunteer_sessions.id
+  participant_id  BIGINT    FK → users.id
+  UNIQUE (session_id, participant_id)  -- uq_session_participant
+
+────────────────────────────────────────
+TABLE: volunteer_applications
+────────────────────────────────────────
+  id              BIGINT    PK, AUTO_INCREMENT
+  status          VARCHAR
+  why             TEXT
+  experience      TEXT
+  skills_to_share TEXT
+  submitted_at    TIMESTAMP
+  user_id         BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: verification_requests
+────────────────────────────────────────
+  id                    BIGINT    PK, AUTO_INCREMENT
+  type                  VARCHAR   (ADULT | MINOR | VOLUNTEER)
+  status                VARCHAR   (PENDING | APPROVED | REJECTED)
+  full_name             VARCHAR
+  dob                   DATE
+  parent_email          VARCHAR
+  parent_approval_token VARCHAR
+  parent_decision_at    TIMESTAMP
+  id_front_image        TEXT
+  id_back_image         TEXT
+  selfie_image          TEXT
+  why                   TEXT
+  experience            TEXT
+  skills_to_share       TEXT
+  submitted_at          TIMESTAMP
+  user_id               BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: identity_verifications
+────────────────────────────────────────
+  id              BIGINT    PK, AUTO_INCREMENT
+  id_front_image  VARCHAR   NOT NULL
+  id_back_image   VARCHAR   NOT NULL
+  selfie_image    VARCHAR   NOT NULL
+  status          VARCHAR   NOT NULL
+  admin_comment   VARCHAR
+  submitted_at    TIMESTAMP
+  reviewed_at     TIMESTAMP
+  user_id         BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: parent_approvals
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  token            VARCHAR   UNIQUE, NOT NULL
+  parent_email     VARCHAR   NOT NULL
+  status           VARCHAR   NOT NULL  (PENDING | APPROVED | DECLINED | EXPIRED)
+  action_type      VARCHAR   (SWAP_REQUEST | SWAP_ACCEPT | SESSION_JOIN | VOLUNTEER_APPLY)
+  action_id        BIGINT    (ID of the related entity — no FK constraint)
+  additional_data  TEXT
+  requested_at     TIMESTAMP
+  expires_at       TIMESTAMP
+  approved_at      TIMESTAMP
+  minor_user_id    BIGINT    FK → users.id  NOT NULL
+
+────────────────────────────────────────
+TABLE: activity_logs
+────────────────────────────────────────
+  id           BIGINT    PK, AUTO_INCREMENT
+  action       VARCHAR   NOT NULL
+  action_type  VARCHAR
+  description  VARCHAR
+  ip_address   VARCHAR
+  user_agent   VARCHAR
+  created_at   TIMESTAMP NOT NULL
+  user_id      BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: support_requests
+────────────────────────────────────────
+  id                   BIGINT    PK, AUTO_INCREMENT
+  old_email            VARCHAR
+  new_email            VARCHAR
+  issue_description    TEXT
+  join_date            VARCHAR
+  location             VARCHAR
+  used_features        TEXT
+  additional_proof_path TEXT
+  ip_address           VARCHAR
+  status               VARCHAR
+  created_at           TIMESTAMP
+  user_id              BIGINT    FK → users.id
+
+────────────────────────────────────────
+TABLE: admin_broadcasts
+────────────────────────────────────────
+  id               BIGINT    PK, AUTO_INCREMENT
+  title            VARCHAR
+  message          TEXT
+  audience         VARCHAR
+  recipient_count  INT
+  sent_at          TIMESTAMP
+
+────────────────────────────────────────
+TABLE: platform_settings
+────────────────────────────────────────
+  id             BIGINT    PK, AUTO_INCREMENT
+  setting_key    VARCHAR   UNIQUE, NOT NULL
+  setting_value  TEXT
+  updated_at     TIMESTAMP
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 2 — ALL RELATIONSHIPS WITH CARDINALITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FORMAT:  TableA  (cardinality_A) ——— (cardinality_B)  TableB
+         via: column / join table
+         meaning: plain english description
+
+━━━━━━━━━━━━━━━━━━  CORE / AUTH  ━━━━━━━━━━━━━━━━━━
+
+  locations (1) ——— (N) users
+  via: users.location_id → locations.id
+  meaning: one location can belong to many users
+
+  users (1) ——— (N) auth_providers
+  via: auth_providers.user_id → users.id
+  meaning: one user can have multiple auth providers (local, GitHub, Google)
+
+  users (1) ——— (1) notification_preferences
+  via: notification_preferences.user_id → users.id  (UNIQUE)
+  meaning: each user has exactly one notification preference record
+
+━━━━━━━━━━━━━━━━━━  SKILLS  ━━━━━━━━━━━━━━━━━━
+
+  skill_categories (1) ——— (N) skills
+  via: skills.category_id → skill_categories.id
+  meaning: one category contains many skills
+
+  users (1) ——— (N) user_skills
+  via: user_skills.user_id → users.id
+  meaning: one user can have many skills listed
+
+  skills (1) ——— (N) user_skills
+  via: user_skills.skill_id → skills.id
+  meaning: one skill can appear in many users' skill lists
+
+  NOTE: users (N) ——— (M) skills
+  This N:M is resolved through the user_skills junction table
+
+━━━━━━━━━━━━━━━━━━  EXCHANGE & SWAPS  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) exchange_listings
+  via: exchange_listings.owner_id → users.id
+  meaning: one user can post many skill exchange listings
+
+  exchange_listings (1) ——— (N) swap_requests
+  via: swap_requests.listing_id → exchange_listings.id
+  meaning: one listing can receive many swap requests
+
+  users (1) ——— (N) swap_requests  [as requester]
+  via: swap_requests.requester_id → users.id
+
+  users (1) ——— (N) swap_requests  [as receiver]
+  via: swap_requests.receiver_id → users.id
+
+  swap_requests (1) ——— (N) swap_sessions
+  via: swap_sessions.swap_request_id → swap_requests.id
+  meaning: one accepted swap can have multiple scheduled sessions
+
+  users (1) ——— (N) reviews  [as reviewer]
+  via: reviews.reviewer_id → users.id
+
+  users (1) ——— (N) reviews  [as reviewed user]
+  via: reviews.reviewed_user_id → users.id
+
+━━━━━━━━━━━━━━━━━━  SOCIAL — POSTS  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) posts
+  via: posts.author_id → users.id
+  meaning: one user can write many posts
+
+  posts (1) ——— (N) comments
+  via: comments.post_id → posts.id
+  meaning: one post can have many comments
+
+  users (1) ——— (N) comments
+  via: comments.author_id → users.id
+
+  comments (1) ——— (N) comments  [self-referencing]
+  via: comments.parent_comment_id → comments.id
+  meaning: one comment can have many replies (threaded comments)
+
+  users (1) ——— (N) post_likes
+  via: post_likes.user_id → users.id
+
+  posts (1) ——— (N) post_likes
+  via: post_likes.post_id → posts.id
+
+  NOTE: users (N) ——— (M) posts  [likes]
+  Resolved through post_likes junction table
+
+  users (1) ——— (N) comment_likes
+  via: comment_likes.user_id → users.id
+
+  comments (1) ——— (N) comment_likes
+  via: comment_likes.comment_id → comments.id
+
+  users (1) ——— (N) post_shares
+  via: post_shares.user_id → users.id
+
+  posts (1) ——— (N) post_shares
+  via: post_shares.post_id → posts.id
+
+  users (1) ——— (N) poll_votes
+  via: poll_votes.user_id → users.id
+
+  posts (1) ——— (N) poll_votes
+  via: poll_votes.post_id → posts.id
+
+  users (1) ——— (N) reports  [as reporter]
+  via: reports.reporter_id → users.id
+
+  posts (1) ——— (N) reports
+  via: reports.reported_post_id → posts.id
+
+━━━━━━━━━━━━━━━━━━  SOCIAL — STORIES  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) stories
+  via: stories.user_id → users.id
+  meaning: one user can post many stories
+
+  stories (1) ——— (N) story_likes
+  via: story_likes.story_id → stories.id
+
+  users (1) ——— (N) story_likes
+  via: story_likes.user_id → users.id
+
+  NOTE: users (N) ——— (M) stories  [likes]
+  Resolved through story_likes junction table
+
+  stories (1) ——— (N) story_views
+  via: story_views.story_id → stories.id
+
+  users (1) ——— (N) story_views  [as viewer]
+  via: story_views.viewer_id → users.id
+
+  stories (1) ——— (N) story_poll_votes
+  via: story_poll_votes.story_id → stories.id
+
+  users (1) ——— (N) story_poll_votes
+  via: story_poll_votes.user_id → users.id
+
+━━━━━━━━━━━━━━━━━━  SOCIAL — CONNECTIONS  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) connections  [as requester]
+  via: connections.requester_id → users.id
+
+  users (1) ——— (N) connections  [as receiver]
+  via: connections.receiver_id → users.id
+
+  NOTE: users (N) ——— (M) users  [connections]
+  Resolved through connections junction-like table
+
+━━━━━━━━━━━━━━━━━━  NEWS  ━━━━━━━━━━━━━━━━━━
+
+  skill_categories (1) ——— (N) news_articles
+  via: news_articles.skill_category_id → skill_categories.id
+  meaning: articles are categorized by skill category
+
+━━━━━━━━━━━━━━━━━━  CHAT  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) conversations  [as admin]
+  via: conversations.admin_id → users.id
+  meaning: one user can be the admin of many group conversations
+
+  users (N) ——— (M) conversations  [as participants]
+  via: conversation_participants  (conversation_id, user_id)
+  meaning: users can be in many conversations; conversations have many users
+
+  users (N) ——— (M) conversations  [hidden from feed]
+  via: conversation_hidden_by  (conversation_id, user_id)
+  meaning: users can hide many conversations from their feed
+
+  conversations (1) ——— (N) messages
+  via: messages.conversation_id → conversations.id
+  meaning: one conversation has many messages
+
+  users (1) ——— (N) messages  [as sender]
+  via: messages.sender_id → users.id
+
+━━━━━━━━━━━━━━━━━━  VOLUNTEER SESSIONS  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) volunteer_sessions  [as organizer]
+  via: volunteer_sessions.organizer_id → users.id
+
+  conversations (1) ——— (1) volunteer_sessions  [group chat]
+  via: volunteer_sessions.conversation_id → conversations.id
+  meaning: every volunteer session has exactly one dedicated group chat
+
+  volunteer_sessions (1) ——— (N) volunteer_participants
+  via: volunteer_participants.session_id → volunteer_sessions.id
+
+  users (1) ——— (N) volunteer_participants
+  via: volunteer_participants.participant_id → users.id
+
+  NOTE: users (N) ——— (M) volunteer_sessions  [as participants]
+  Resolved through volunteer_participants junction table
+
+  users (1) ——— (N) volunteer_applications
+  via: volunteer_applications.user_id → users.id
+
+━━━━━━━━━━━━━━━━━━  VERIFICATION & PARENTAL  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) verification_requests
+  via: verification_requests.user_id → users.id
+  meaning: a user can submit multiple verification requests over time
+           (ADULT, MINOR, VOLUNTEER types)
+
+  users (1) ——— (N) identity_verifications
+  via: identity_verifications.user_id → users.id
+
+  users (1) ——— (N) parent_approvals  [as minor]
+  via: parent_approvals.minor_user_id → users.id
+  meaning: a minor user can have many pending parental approval requests
+           (for swaps, sessions, volunteer applications)
+
+━━━━━━━━━━━━━━━━━━  SYSTEM / ADMIN  ━━━━━━━━━━━━━━━━━━
+
+  users (1) ——— (N) notifications
+  via: notifications.user_id → users.id
+
+  users (1) ——— (N) activity_logs
+  via: activity_logs.user_id → users.id
+
+  users (1) ——— (N) support_requests
+  via: support_requests.user_id → users.id
+
+  admin_broadcasts  — standalone (no FK relationships)
+  platform_settings — standalone (no FK relationships)
+  otp_verifications — standalone (email only, no FK to users)
+  password_reset_tokens — standalone (email only, no FK to users)
+  email_change_requests — standalone (email only, no FK to users)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 3 — SUMMARY: N:M RELATIONSHIPS (JOIN TABLES)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #  Entity A          Entity B              Join Table
+  ─  ─────────────────────────────────────────────────────────────────────
+  1  users             skills                user_skills
+  2  users             conversations         conversation_participants
+  3  users             conversations         conversation_hidden_by
+  4  users             volunteer_sessions    volunteer_participants
+  5  users             users (self)          connections
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 4 — SUMMARY: 1:1 RELATIONSHIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #  Entity A               Entity B                   Via column
+  ─  ─────────────────────────────────────────────────────────────────────
+  1  users                  notification_preferences    user_id (UNIQUE FK)
+  2  volunteer_sessions     conversations               conversation_id
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 5 — SELF-REFERENCING RELATIONSHIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  comments.parent_comment_id → comments.id
+  (1 comment can have many reply comments — threaded/nested comments)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 6 — TABLES WITH NO FOREIGN KEYS (STANDALONE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  locations             — referenced by users
+  skill_categories      — referenced by skills and news_articles
+  otp_verifications     — stores email as plain string (no FK)
+  password_reset_tokens — stores email as plain string (no FK)
+  email_change_requests — stores emails as plain strings (no FK)
+  admin_broadcasts      — no FK, admin-only broadcast records
+  platform_settings     — no FK, key-value config store
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION 7 — TABLE COUNT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Total entity tables:     40
+  Total join tables (N:M): 5
+  Total grand total:       45
+
+  GROUP                        TABLES
+  ──────────────────────────────────────────────────────────────
+  Core / Auth                  users, locations, auth_providers,
+                               otp_verifications,
+                               password_reset_tokens,
+                               email_change_requests,
+                               notification_preferences
+
+  Skills                       skill_categories, skills, user_skills
+
+  Exchange & Swaps             exchange_listings, swap_requests,
+                               swap_sessions, reviews
+
+  Social — Posts               posts, comments, post_likes,
+                               comment_likes, post_shares,
+                               poll_votes, reports
+
+  Social — Stories             stories, story_likes, story_views,
+                               story_poll_votes
+
+  Social — Connections         connections
+
+  News                         news_articles
+
+  Chat                         conversations,
+                               conversation_participants (join),
+                               conversation_hidden_by (join),
+                               messages
+
+  Volunteer                    volunteer_sessions,
+                               volunteer_participants (join),
+                               volunteer_applications
+
+  Verification & Parental      verification_requests,
+                               identity_verifications,
+                               parent_approvals
+
+  System / Admin               notifications, activity_logs,
+                               support_requests, admin_broadcasts,
+                               platform_settings
+
+================================================================================
+  SECTION 8 — DRAWING STATISTICS
+================================================================================
+
+  TOTAL ENTITIES TO DRAW:  40  (+ 5 join/junction tables = 45 total shapes)
+
+────────────────────────────────────────────────────────────────────────────────
+  8A — ATTRIBUTE COUNT PER ENTITY
+  (includes PK + all columns, FK columns counted as attributes)
+────────────────────────────────────────────────────────────────────────────────
+
+  #   TABLE                        ATTRIBUTES
+  ──  ───────────────────────────  ──────────
+   1  users                        19
+   2  locations                     3
+   3  auth_providers                6
+   4  otp_verifications             6
+   5  password_reset_tokens         6
+   6  email_change_requests         8
+   7  notification_preferences      6
+   8  skill_categories              4
+   9  skills                        3
+  10  user_skills                   4
+  11  exchange_listings             8
+  12  swap_requests                12
+  13  swap_sessions                 4
+  14  reviews                       6
+  15  posts                         9
+  16  comments                      5
+  17  post_likes                    3
+  18  comment_likes                 4
+  19  post_shares                   5
+  20  poll_votes                    5
+  21  stories                       9
+  22  story_likes                   4
+  23  story_views                   4
+  24  story_poll_votes              5
+  25  connections                   5
+  26  reports                       5
+  27  notifications                 9
+  28  news_articles                 7
+  29  conversations                 8
+  30  messages                     16
+  31  volunteer_sessions            9
+  32  volunteer_participants        3
+  33  volunteer_applications        7
+  34  verification_requests        16
+  35  identity_verifications        9
+  36  parent_approvals             11
+  37  activity_logs                 8
+  38  support_requests             11
+  39  admin_broadcasts              6
+  40  platform_settings             4
+
+  JOIN TABLES (draw as rectangles or diamonds):
+  41  conversation_participants     2   (conversation_id, user_id)
+  42  conversation_hidden_by        2   (conversation_id, user_id)
+  43  user_skills           → already counted above as entity #10
+  44  volunteer_participants → already counted above as entity #32
+  45  connections            → already counted above as entity #25
+
+  TOTAL ATTRIBUTES ACROSS ALL ENTITIES:  ~290
+
+────────────────────────────────────────────────────────────────────────────────
+  8B — RELATIONSHIP COUNT PER ENTITY
+  (how many other tables each entity connects to)
+────────────────────────────────────────────────────────────────────────────────
+
+  TABLE                       # RELATIONS   CONNECTED TO
+  ──────────────────────────  ───────────   ─────────────────────────────────────────────────────────
+  users                           21        locations, auth_providers,
+                                            notification_preferences,
+                                            user_skills, exchange_listings,
+                                            swap_requests (x2: requester+receiver),
+                                            reviews (x2: reviewer+reviewed),
+                                            posts, comments, post_likes,
+                                            comment_likes, post_shares,
+                                            poll_votes, stories, story_likes,
+                                            story_views, story_poll_votes,
+                                            connections (x2: requester+receiver),
+                                            reports, notifications,
+                                            conversations (admin+participants+hidden),
+                                            messages,
+                                            volunteer_sessions, volunteer_participants,
+                                            volunteer_applications,
+                                            verification_requests,
+                                            identity_verifications,
+                                            parent_approvals,
+                                            activity_logs, support_requests
+
+  locations                        1        users
+
+  auth_providers                   1        users
+
+  notification_preferences         1        users
+
+  skill_categories                 2        skills, news_articles
+
+  skills                           2        skill_categories, user_skills
+
+  user_skills                      2        users, skills
+
+  exchange_listings                2        users, swap_requests
+
+  swap_requests                    4        exchange_listings, users (requester),
+                                            users (receiver), swap_sessions
+
+  swap_sessions                    1        swap_requests
+
+  reviews                          2        users (reviewer), users (reviewed)
+
+  posts                            6        users, comments, post_likes,
+                                            comment_likes, post_shares,
+                                            poll_votes, reports
+
+  comments                         4        users, posts,
+                                            comments (parent), comments (replies)
+
+  post_likes                       2        users, posts
+
+  comment_likes                    2        users, comments
+
+  post_shares                      2        users, posts
+
+  poll_votes                       2        users, posts
+
+  stories                          5        users, story_likes, story_views,
+                                            story_poll_votes
+
+  story_likes                      2        stories, users
+
+  story_views                      2        stories, users
+
+  story_poll_votes                 2        stories, users
+
+  connections                      2        users (requester), users (receiver)
+
+  reports                          2        users, posts
+
+  notifications                    1        users
+
+  news_articles                    1        skill_categories
+
+  conversations                    5        users (admin),
+                                            users (participants — via join table),
+                                            users (hidden_by — via join table),
+                                            messages,
+                                            volunteer_sessions
+
+  messages                         2        conversations, users
+
+  volunteer_sessions               3        users (organizer),
+                                            conversations,
+                                            volunteer_participants
+
+  volunteer_participants           2        volunteer_sessions, users
+
+  volunteer_applications           1        users
+
+  verification_requests            1        users
+
+  identity_verifications           1        users
+
+  parent_approvals                 1        users (minor)
+
+  activity_logs                    1        users
+
+  support_requests                 1        users
+
+  otp_verifications                0        (standalone — no FK)
+  password_reset_tokens            0        (standalone — no FK)
+  email_change_requests            0        (standalone — no FK)
+  admin_broadcasts                 0        (standalone — no FK)
+  platform_settings                0        (standalone — no FK)
+
+────────────────────────────────────────────────────────────────────────────────
+  8C — MOST CONNECTED ENTITIES (draw these first as center nodes)
+────────────────────────────────────────────────────────────────────────────────
+
+  RANK  TABLE                  CONNECTIONS   NOTE
+  ────  ─────────────────────  ───────────   ──────────────────────────────
+   1    users                      21+       Central hub — connects to nearly everything
+   2    posts                        7       Central social entity
+   3    conversations                5       Central chat entity
+   4    stories                      5       Central story entity
+   5    swap_requests                4       Central swap entity
+   6    comments                     4       Self-referencing + post + user
+   7    volunteer_sessions           3       Links organizer + chat + participants
+   8    skills / skill_categories    2       Skills domain root
+   9    exchange_listings            2       Listings domain root
+  10    all others                   1       Leaf nodes — draw last
+
+────────────────────────────────────────────────────────────────────────────────
+  8D — ENTITIES WITH NO RELATIONSHIPS (draw isolated)
+────────────────────────────────────────────────────────────────────────────────
+
+  otp_verifications       — 6 attributes, 0 relations
+  password_reset_tokens   — 6 attributes, 0 relations
+  email_change_requests   — 8 attributes, 0 relations
+  admin_broadcasts        — 6 attributes, 0 relations
+  platform_settings       — 4 attributes, 0 relations
+
+================================================================================
+  END OF REFERENCE
+================================================================================

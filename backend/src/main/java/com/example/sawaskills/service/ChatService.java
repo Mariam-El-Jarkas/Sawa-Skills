@@ -294,6 +294,12 @@ public class ChatService {
         conversation.setClosed(true);
         conversationRepository.save(conversation);
 
+        // Mark the linked volunteer session as ENDED
+        volunteerSessionRepository.findByGroupChatId(conversationId).ifPresent(session -> {
+            session.setStatus("ENDED");
+            volunteerSessionRepository.save(session);
+        });
+
         // Hide from all participants' feeds so it disappears from everyone's chat list
         conversation.getParticipants().forEach(p ->
                 conversationRepository.insertHiddenBy(conversationId, p.getId())
