@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Trash2 } from 'lucide-react'
 import { PageHeader, Table, ConfirmDialog, AlertBanner } from '../../components/ui'
 import { adminApi } from '../../api/adminApi'
 import { useAuthStore } from '../../store/authStore'
@@ -54,6 +54,7 @@ export default function VolunteerPage() {
                     <button onClick={() => setConfirm({ msg: `Reject "${v.title}"?`, danger: true, onConfirm: () => doAction(() => adminApi.rejectSession(token, v.id)) })} className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Reject"><XCircle size={15} /></button>
                   </>}
                   {v.status === 'APPROVED' && <span className="text-xs text-green-600 font-medium px-2">Live ✓</span>}
+                  <button onClick={() => setConfirm({ msg: `Delete "${v.title}"? This cannot be undone.`, danger: true, onConfirm: () => doAction(() => adminApi.deleteSession(token, v.id)) })} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={15} /></button>
                 </div>
               </td>
             </tr>

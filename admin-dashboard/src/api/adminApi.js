@@ -70,6 +70,7 @@ export const adminApi = {
   getVolunteerSessions: (token)    => req('GET', '/admin/volunteer/sessions', undefined, token),
   approveSession:       (token, id) => req('PATCH', `/admin/volunteer/sessions/${id}/approve`, null, token),
   rejectSession:        (token, id) => req('PATCH', `/admin/volunteer/sessions/${id}/reject`, null, token),
+  deleteSession:        (token, id) => req('DELETE', `/admin/volunteer/sessions/${id}`, undefined, token),
 
   // ── Badge revocation ───────────────────────────────────────────────────────
   revokeBadge: (token, userId, type) => req('PATCH', `/admin/users/${userId}/revoke-badge?type=${type}`, null, token),
