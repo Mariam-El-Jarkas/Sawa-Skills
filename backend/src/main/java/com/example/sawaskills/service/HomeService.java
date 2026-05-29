@@ -80,9 +80,11 @@ public class HomeService {
         // Fallback defaults so the UI always has something to show
         if (result.isEmpty()) {
             result = List.of(
-                    new TrendingSkillResponse("Photography", 24L),
-                    new TrendingSkillResponse("Web Design", 18L),
-                    new TrendingSkillResponse("Arabic", 15L)
+                    new TrendingSkillResponse("Web Development", 31L),
+                    new TrendingSkillResponse("Photography", 27L),
+                    new TrendingSkillResponse("Graphic Design", 22L),
+                    new TrendingSkillResponse("Cooking", 19L),
+                    new TrendingSkillResponse("Guitar", 14L)
             );
         }
         return result;
