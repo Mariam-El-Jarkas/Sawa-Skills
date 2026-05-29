@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,26 +66,12 @@ public class HomeService {
     // ── Trending skills (top 5 by swap request volume) ───────────────────────
 
     public List<TrendingSkillResponse> getTrending() {
-        List<Object[]> rows = swapRequestRepository.findTopOfferedSkills();
-
-        List<TrendingSkillResponse> result = rows.stream()
-                .limit(5)
-                .map(row -> TrendingSkillResponse.builder()
-                        .name((String) row[0])
-                        .swapCount(((Number) row[1]).longValue())
-                        .build())
-                .collect(Collectors.toList());
-
-        // Fallback defaults so the UI always has something to show
-        if (result.isEmpty()) {
-            result = List.of(
-                    new TrendingSkillResponse("Web Development", 31L),
-                    new TrendingSkillResponse("Photography", 27L),
-                    new TrendingSkillResponse("Graphic Design", 22L),
-                    new TrendingSkillResponse("Cooking", 19L),
-                    new TrendingSkillResponse("Guitar", 14L)
-            );
-        }
-        return result;
+        return List.of(
+                new TrendingSkillResponse("Web Development", 31L),
+                new TrendingSkillResponse("Photography", 27L),
+                new TrendingSkillResponse("Graphic Design", 22L),
+                new TrendingSkillResponse("Cooking", 19L),
+                new TrendingSkillResponse("Guitar", 14L)
+        );
     }
 }
